@@ -10,8 +10,8 @@ const (
 	certManagerVersion     = "1.18.2"
 	certManagerNamespace   = "cert-manager"
 	certManagerMaxWaitTime = 3 * time.Minute
-	route53SecretURL       = "https://raw.githubusercontent.com/BeaverHouse/hybrid-cicd/refs/heads/main/charts/oss-cert-manager/resources/route53-secret.yaml"
-	clusterIssuerURL       = "https://raw.githubusercontent.com/BeaverHouse/hybrid-cicd/refs/heads/main/charts/oss-cert-manager/resources/cluster-issuer.yaml"
+	route53SecretURL       = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-cert-manager/resources/route53-secret.yaml"
+	clusterIssuerURL       = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-cert-manager/resources/cluster-issuer.yaml"
 )
 
 func InstallCertManager() error {
