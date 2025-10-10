@@ -21,7 +21,7 @@
 - GitLab Personal Access Token 입력으로 ESO SecretStore 자동 구성
 - Ingress 연결성 검증 후 실패 시 설치 중단 (Critical)
 
-### Colima를 선택한 이유
+### Colima + K3s를 선택한 이유
 
 일반적으로 macOS에서는 K8s 설치를 위해 가상화 환경이 필수적입니다.  
 가장 잘 알려진 도구가 [Multipass](https://canonical.com/multipass)고 저도 이것을 사용했었지만, Multipass를 사용할 경우 네트워크 문제가 많이 발생하였습니다.  
@@ -29,6 +29,9 @@
 https://github.com/canonical/microk8s/issues/908 를 참고해 주세요.
 
 Colima를 사용했을 때는 기본 설정으로도 이런 일이 거의 일어나지 않았기 때문에 macOS에서 더 안정적이라고 판단하였습니다.
+
+K3s는 MicroK8s와 함께 간편하게 사용 가능하면서도, Production 환경에서도 사용 가능한 K8s 설치 도구입니다.  
+둘 다 사용 경험은 있었고 회사에서는 MicroK8s를 사용했지만, macOS에서는 Multipass 의존성이 강하여 Colima와 쉽게 조합 가능한 K3s를 사용하게 되었습니다.
 
 ## 사용 가능 커맨드
 
