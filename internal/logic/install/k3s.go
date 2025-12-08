@@ -18,7 +18,7 @@ const (
 
 func validatePrerequisites() error {
 	if !common.IsCommandAvailable("brew") {
-		return fmt.Errorf("Homebrew is required but not installed. Visit https://brew.sh/ to install it")
+		return fmt.Errorf("err: Homebrew is required but not installed. Visit https://brew.sh/ to install it")
 	}
 	return nil
 }
@@ -68,7 +68,9 @@ func startColimaWithK3s() error {
 		"--network-address",
 		"--network-mode", "bridged",
 		"--network-interface", "en1",
-		"--kubernetes")
+		"--kubernetes",
+		"--dns", "8.8.8.8",
+		"--dns", "8.8.4.4")
 
 	if err != nil {
 		return fmt.Errorf("failed to start Colima with K3s: %v", err)

@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	gitlabClusterSecretStoreURL = "https://raw.githubusercontent.com/BeaverHouse/hybrid-cicd/refs/heads/main/charts/app-clustersecrets/resources/gitlab-clustersecretstore.yaml"
+	gitlabClusterSecretStoreURL = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/app-clustersecrets/resources/gitlab-clustersecretstore.yaml"
 )
 
 func SetupESOSecretStore(gitlabPAT string) error {

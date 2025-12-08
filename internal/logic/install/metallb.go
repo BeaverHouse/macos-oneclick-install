@@ -9,8 +9,8 @@ import (
 const (
 	metalLBVersion      = "0.15.2"
 	maxWaitTime         = 3 * time.Minute
-	metalLBNamespaceURL = "https://raw.githubusercontent.com/BeaverHouse/hybrid-cicd/refs/heads/main/charts/oss-metallb/resources/namespace.yaml"
-	metalLBIPConfigURL  = "https://raw.githubusercontent.com/BeaverHouse/hybrid-cicd/refs/heads/main/charts/oss-metallb/resources/ipconfig.yaml"
+	metalLBNamespaceURL = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-metallb/resources/namespace.yaml"
+	metalLBIPConfigURL  = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-metallb/resources/ipconfig.yaml"
 )
 
 func InstallMetalLB() error {

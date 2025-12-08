@@ -12,8 +12,8 @@ const (
 	argoCDRepoURL     = "https://argoproj.github.io/argo-helm"
 	argoCDNamespace   = "argo-project"
 	argoCDMaxWaitTime = 3 * time.Minute
-	oauthSecretURL    = "https://raw.githubusercontent.com/BeaverHouse/hybrid-cicd/refs/heads/main/charts/oss-argocd/resources/oauth-secret.yaml"
-	argoCDValuesURL   = "https://raw.githubusercontent.com/BeaverHouse/hybrid-cicd/refs/heads/main/charts/oss-argocd/values.yaml"
+	oauthSecretURL    = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-argocd/resources/oauth-secret.yaml"
+	argoCDValuesURL   = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-argocd/values.yaml"
 )
 
 func InstallArgoCD() error {
