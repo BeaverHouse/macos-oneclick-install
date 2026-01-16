@@ -93,54 +93,6 @@ func RunCommandWithTimeout(timeout time.Duration, name string, args ...string) e
 	return err
 }
 
-// RunMultipassCommand runs multipass with absolute path resolution
-func RunMultipassCommand(args ...string) error {
-	// Try to find multipass in common locations
-	multipassPaths := []string{
-		"/usr/local/bin/multipass",
-		"/opt/homebrew/bin/multipass",
-		"multipass", // fallback to PATH
-	}
-
-	var multipassPath string
-	for _, path := range multipassPaths {
-		if _, err := os.Stat(path); err == nil {
-			multipassPath = path
-			break
-		}
-	}
-
-	if multipassPath == "" {
-		multipassPath = "multipass" // Use PATH as last resort
-	}
-
-	return RunCommand(multipassPath, args...)
-}
-
-// RunMultipassCommandOutput runs multipass with absolute path resolution and returns output
-func RunMultipassCommandOutput(args ...string) (string, error) {
-	// Try to find multipass in common locations
-	multipassPaths := []string{
-		"/usr/local/bin/multipass",
-		"/opt/homebrew/bin/multipass",
-		"multipass", // fallback to PATH
-	}
-
-	var multipassPath string
-	for _, path := range multipassPaths {
-		if _, err := os.Stat(path); err == nil {
-			multipassPath = path
-			break
-		}
-	}
-
-	if multipassPath == "" {
-		multipassPath = "multipass" // Use PATH as last resort
-	}
-
-	return RunCommandOutput(multipassPath, args...)
-}
-
 // WaitForPodsReady waits for pods to be ready in a given namespace with a selector
 func WaitForPodsReady(namespace, selector string, maxWaitTime time.Duration) error {
 	selectorText := selector

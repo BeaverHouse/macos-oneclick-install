@@ -58,8 +58,8 @@ func showUsage() {
 	fmt.Printf(`Usage: %s <command>
 
 Commands:
-  install    Install K3s on Mac via Multipass VM
-  uninstall  Uninstall K3s and clean up all files
+  install    Install K3s cluster on macOS via Colima
+  uninstall  Uninstall K3s cluster and clean up all resources
 
 `, appName)
 }

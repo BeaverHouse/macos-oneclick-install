@@ -6,11 +6,13 @@ import (
 	"time"
 )
 
+// MetalLB configuration
 const (
-	metalLBVersion      = "0.15.2"
-	maxWaitTime         = 3 * time.Minute
-	metalLBNamespaceURL = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-metallb/resources/namespace.yaml"
-	metalLBIPConfigURL  = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-metallb/resources/ipconfig.yaml"
+	metalLBVersion         = "0.15.2"
+	metalLBNamespace       = "metallb-system"
+	metalLBPodReadyTimeout = 3 * time.Minute
+	metalLBNamespaceURL    = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-metallb/resources/namespace.yaml"
+	metalLBIPConfigURL     = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-metallb/resources/ipconfig.yaml"
 )
 
 func InstallMetalLB() error {
@@ -48,7 +50,7 @@ func applyMetalLBManifests() error {
 }
 
 func waitForMetalLBPods() error {
-	return common.WaitForPodsReady("metallb-system", "app=metallb", maxWaitTime)
+	return common.WaitForPodsReady(metalLBNamespace, "app=metallb", metalLBPodReadyTimeout)
 }
 
 func applyIPConfig() error {
@@ -60,12 +62,12 @@ func verifyMetalLBInstallation() error {
 	fmt.Println("🔍 Verifying MetalLB installation...")
 
 	fmt.Println("\n📋 MetalLB pods status:")
-	if err := common.RunCommand("kubectl", "get", "pods", "-n", "metallb-system"); err != nil {
+	if err := common.RunCommand("kubectl", "get", "pods", "-n", metalLBNamespace); err != nil {
 		return err
 	}
 
 	fmt.Println("\n⚙️ MetalLB configuration:")
-	if err := common.RunCommand("kubectl", "get", "ipaddresspool", "-n", "metallb-system"); err != nil {
+	if err := common.RunCommand("kubectl", "get", "ipaddresspool", "-n", metalLBNamespace); err != nil {
 		fmt.Printf("Warning: failed to get IP address pool: %v\n", err)
 	}
 

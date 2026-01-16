@@ -8,15 +8,19 @@ import (
 	"time"
 )
 
+// Gateway API and NGINX Gateway Fabric configuration
 const (
 	gatewayAPIVersion       = "v1.4.0"
-	gatewayAPICRDURL        = "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml"
 	nginxGatewayVersion     = "2.2.1"
-	nginxGatewayOCIRegistry = "oci://ghcr.io/nginx/charts/nginx-gateway-fabric"
 	nginxGatewayNamespace   = "nginx-gateway"
+	nginxGatewayOCIRegistry = "oci://ghcr.io/nginx/charts/nginx-gateway-fabric"
 	nginxGatewayValuesURL   = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-nginx-gateway/values-home.yaml"
-	loadBalancerIP          = "192.168.0.180"
 )
+
+// gatewayAPICRDURL returns the URL for Gateway API CRDs
+func gatewayAPICRDURL() string {
+	return fmt.Sprintf("https://github.com/kubernetes-sigs/gateway-api/releases/download/%s/standard-install.yaml", gatewayAPIVersion)
+}
 
 func InstallNginxGateway() error {
 	fmt.Println("🌐 Installing NGINX Gateway Fabric...")
@@ -35,7 +39,7 @@ func InstallNginxGateway() error {
 
 func installGatewayAPICRDs() error {
 	fmt.Printf("📋 Installing Gateway API CRDs (%s)...\n", gatewayAPIVersion)
-	return common.RunCommand("kubectl", "apply", "-f", gatewayAPICRDURL)
+	return common.RunCommand("kubectl", "apply", "-f", gatewayAPICRDURL())
 }
 
 func installNginxGatewayFabric() error {
