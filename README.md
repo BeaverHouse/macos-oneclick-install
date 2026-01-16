@@ -42,3 +42,8 @@ K3s는 MicroK8s와 함께 간편하게 사용 가능하면서도, Production 환
 # 전체 제거 (Colima, Helm, 설정 파일 등 완전 삭제)
 ./austinhome uninstall
 ```
+
+## TODO
+
+Colima의 Memory Leak, 그리고 Mac mini or Colima의 네트워크 문제가 생기는 경우가 있습니다.  
+가장 확실한 해결법은 Mac mini를 완전히 재부팅하는 것입니다. 필요시 이를 자동화해야 합니다.
