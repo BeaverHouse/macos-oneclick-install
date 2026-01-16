@@ -60,19 +60,19 @@ func Execute() error {
 		fmt.Printf("Warning: MetalLB verification failed: %v\n", err)
 	}
 
-	// Install NGINX Ingress Controller
-	if err := InstallIngressNginx(); err != nil {
+	// Install NGINX Gateway Fabric (Gateway API)
+	if err := InstallNginxGateway(); err != nil {
 		return err
 	}
 
-	if err := verifyIngressNginxInstallation(); err != nil {
-		fmt.Printf("Warning: Ingress Nginx verification failed: %v\n", err)
+	if err := verifyNginxGatewayInstallation(); err != nil {
+		fmt.Printf("Warning: NGINX Gateway Fabric verification failed: %v\n", err)
 	}
 
-	// Critical: Test ingress connectivity, fail installation if this doesn't work
-	if err := VerifyIngressConnectivity(); err != nil {
-		fmt.Printf("❌ Critical: Ingress connectivity verification failed: %v\n", err)
-		fmt.Println("🛑 Installation aborted due to ingress connectivity issues")
+	// Critical: Test gateway connectivity, fail installation if this doesn't work
+	if err := VerifyGatewayConnectivity(); err != nil {
+		fmt.Printf("❌ Critical: Gateway connectivity verification failed: %v\n", err)
+		fmt.Println("🛑 Installation aborted due to gateway connectivity issues")
 		return err
 	}
 
