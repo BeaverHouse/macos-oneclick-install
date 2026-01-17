@@ -15,6 +15,7 @@ const (
 	nginxGatewayNamespace   = "nginx-gateway"
 	nginxGatewayOCIRegistry = "oci://ghcr.io/nginx/charts/nginx-gateway-fabric"
 	nginxGatewayValuesURL   = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-nginx-gateway/values-home.yaml"
+	homeGatewayResourceURL  = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-nginx-gateway/resources/gateway-home.yaml"
 )
 
 // gatewayAPICRDURL returns the URL for Gateway API CRDs
@@ -33,8 +34,17 @@ func InstallNginxGateway() error {
 		return err
 	}
 
+	if err := createHomeGateway(); err != nil {
+		return err
+	}
+
 	fmt.Println("✅ Successfully installed NGINX Gateway Fabric")
 	return nil
+}
+
+func createHomeGateway() error {
+	fmt.Println("🚪 Creating home-gateway resource...")
+	return common.RunCommand("kubectl", "apply", "-f", homeGatewayResourceURL)
 }
 
 func installGatewayAPICRDs() error {

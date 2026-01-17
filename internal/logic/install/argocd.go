@@ -6,14 +6,23 @@ import (
 	"time"
 )
 
+// ArgoCD configuration
 const (
 	argoCDVersion     = "8.5.8"
 	argoCDRepoName    = "argo"
 	argoCDRepoURL     = "https://argoproj.github.io/argo-helm"
 	argoCDNamespace   = "argo-project"
 	argoCDMaxWaitTime = 3 * time.Minute
-	oauthSecretURL    = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-argocd/resources/oauth-secret.yaml"
-	argoCDValuesURL   = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-argocd/values.yaml"
+)
+
+// Resource URLs from cicd repo
+const (
+	oauthSecretURL          = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-argocd/resources/oauth-secret.yaml"
+	argoCDValuesURL         = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-argocd/values.yaml"
+	appProjectHomeServerURL = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-argocd/resources/appproject-home-server.yaml"
+	appProjectCloudURL      = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-argocd/resources/appproject-cloud.yaml"
+	appOfAppsURL            = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-argocd/resources/app-of-apps.yaml"
+	appOfApplicationSetsURL = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-argocd/resources/app-of-applicationsets.yaml"
 )
 
 func InstallArgoCD() error {
@@ -43,8 +52,55 @@ func InstallArgoCD() error {
 		return err
 	}
 
+	// Bootstrap ArgoCD with initial resources
+	if err := bootstrapArgoCD(); err != nil {
+		return err
+	}
+
 	fmt.Println("✅ Successfully installed ArgoCD")
 	return nil
+}
+
+func bootstrapArgoCD() error {
+	fmt.Println("🔧 Bootstrapping ArgoCD with initial resources...")
+
+	if err := applyAppProject(); err != nil {
+		return err
+	}
+
+	if err := applyAppOfApps(); err != nil {
+		return err
+	}
+
+	if err := applyAppOfApplicationSets(); err != nil {
+		return err
+	}
+
+	fmt.Println("✅ ArgoCD bootstrap completed")
+	return nil
+}
+
+func applyAppProject() error {
+	fmt.Println("📋 Applying AppProjects...")
+
+	if err := common.RunCommand("kubectl", "apply", "-f", appProjectHomeServerURL); err != nil {
+		return err
+	}
+	if err := common.RunCommand("kubectl", "apply", "-f", appProjectCloudURL); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func applyAppOfApps() error {
+	fmt.Println("📋 Applying App of Apps...")
+	return common.RunCommand("kubectl", "apply", "-f", appOfAppsURL)
+}
+
+func applyAppOfApplicationSets() error {
+	fmt.Println("📋 Applying App of ApplicationSets...")
+	return common.RunCommand("kubectl", "apply", "-f", appOfApplicationSetsURL)
 }
 
 func createArgoCDNamespace() error {
