@@ -92,7 +92,7 @@ func getGatewayIP() (string, error) {
 	startTime := time.Now()
 
 	for time.Since(startTime) < maxWaitTime {
-		output, err := common.RunCommandOutput("kubectl", "get", "service", "nginx-gateway-nginx-gateway-fabric", "-n", nginxGatewayNamespace, "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+		output, err := common.RunCommandOutput("kubectl", "get", "service", "home-gateway-nginx", "-n", nginxGatewayNamespace, "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
 		if err != nil {
 			return "", fmt.Errorf("failed to get gateway service info: %v", err)
 		}
@@ -113,36 +113,47 @@ func getGatewayIP() (string, error) {
 func testGatewayConnectivity(ip string) error {
 	fmt.Printf("🧪 Testing Gateway connectivity at %s...\n", ip)
 
-	// Test HTTP connection to the gateway
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
 	testURL := fmt.Sprintf("http://%s", ip)
-	fmt.Printf("📡 Making HTTP request to %s\n", testURL)
+	maxRetries := 6
+	retryInterval := 10 * time.Second
 
-	resp, err := client.Get(testURL)
-	if err != nil {
-		return fmt.Errorf("failed to connect to gateway at %s: %v", ip, err)
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		fmt.Printf("📡 Making HTTP request to %s (attempt %d/%d)\n", testURL, attempt, maxRetries)
+
+		resp, err := client.Get(testURL)
+		if err != nil {
+			if attempt < maxRetries {
+				fmt.Printf("⏳ Gateway not ready yet, retrying in %v...\n", retryInterval)
+				time.Sleep(retryInterval)
+				continue
+			}
+			return fmt.Errorf("failed to connect to gateway at %s after %d attempts: %v", ip, maxRetries, err)
+		}
+		defer resp.Body.Close()
+
+		fmt.Printf("✅ HTTP Response: %s (Status: %d)\n", resp.Status, resp.StatusCode)
+
+		// NGINX Gateway Fabric returns 404 when no routes are configured
+		if resp.StatusCode == 404 {
+			fmt.Println("✅ Got 404 Not Found - NGINX Gateway Fabric is working!")
+			return nil
+		}
+
+		// Check if it's nginx
+		serverHeader := resp.Header.Get("Server")
+		if strings.Contains(strings.ToLower(serverHeader), "nginx") {
+			fmt.Println("✅ NGINX is responding correctly!")
+			return nil
+		}
+
+		return fmt.Errorf("unexpected response from gateway - expected nginx or 404, got: %s", resp.Status)
 	}
-	defer resp.Body.Close()
 
-	fmt.Printf("✅ HTTP Response: %s (Status: %d)\n", resp.Status, resp.StatusCode)
-
-	// NGINX Gateway Fabric returns 404 when no routes are configured
-	if resp.StatusCode == 404 {
-		fmt.Println("✅ Got 404 Not Found - NGINX Gateway Fabric is working!")
-		return nil
-	}
-
-	// Check if it's nginx
-	serverHeader := resp.Header.Get("Server")
-	if strings.Contains(strings.ToLower(serverHeader), "nginx") {
-		fmt.Println("✅ NGINX is responding correctly!")
-		return nil
-	}
-
-	return fmt.Errorf("unexpected response from gateway - expected nginx or 404, got: %s", resp.Status)
+	return fmt.Errorf("failed to connect to gateway at %s after %d attempts", ip, maxRetries)
 }
 
 func testGatewayFromHost(ip string) error {
@@ -192,7 +203,7 @@ func performGatewayNetworkAnalysis(ip string) error {
 
 	// Show gateway service details
 	fmt.Println("🌐 Gateway service details:")
-	common.RunCommand("kubectl", "get", "service", "nginx-gateway-nginx-gateway-fabric", "-n", nginxGatewayNamespace, "-o", "wide")
+	common.RunCommand("kubectl", "get", "service", "home-gateway-nginx", "-n", nginxGatewayNamespace, "-o", "wide")
 
 	// Show gateway controller logs
 	fmt.Println("📋 Recent gateway controller logs:")

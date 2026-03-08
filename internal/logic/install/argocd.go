@@ -8,7 +8,7 @@ import (
 
 // ArgoCD configuration
 const (
-	argoCDVersion     = "8.5.8"
+	argoCDVersion     = "9.4.7"
 	argoCDRepoName    = "argo"
 	argoCDRepoURL     = "https://argoproj.github.io/argo-helm"
 	argoCDNamespace   = "argo-project"
@@ -48,6 +48,20 @@ func InstallArgoCD() error {
 		return err
 	}
 
+	// Wait for dex to be ready first to avoid SSO initialization race condition
+	if err := common.WaitForPodsReady(argoCDNamespace, "app.kubernetes.io/name=argocd-dex-server", argoCDMaxWaitTime); err != nil {
+		return err
+	}
+
+	if err := common.WaitForPodsReady(argoCDNamespace, "app.kubernetes.io/name=argocd-server", argoCDMaxWaitTime); err != nil {
+		return err
+	}
+
+	// Restart argocd-server so it connects to the already-running dex server
+	fmt.Println("🔄 Restarting ArgoCD server to initialize SSO...")
+	if err := common.RunCommand("kubectl", "rollout", "restart", "deployment", "argocd-server", "-n", argoCDNamespace); err != nil {
+		return err
+	}
 	if err := common.WaitForPodsReady(argoCDNamespace, "app.kubernetes.io/name=argocd-server", argoCDMaxWaitTime); err != nil {
 		return err
 	}
