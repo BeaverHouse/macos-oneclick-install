@@ -1,6 +1,8 @@
 package install
 
 import (
+	"austinhome/internal/logic/common"
+	"austinhome/internal/logic/oke"
 	"bufio"
 	"fmt"
 	"os"
@@ -8,6 +10,9 @@ import (
 )
 
 const defaultEnvLabel = "dev"
+
+// stdinReader is shared across all prompts to avoid bufio buffer conflicts.
+var stdinReader = bufio.NewReader(os.Stdin)
 
 // Execute runs the full installation pipeline for K3s cluster on macOS.
 func Execute() error {
@@ -19,6 +24,11 @@ func Execute() error {
 	gitlabPAT, err := promptGitLabPAT()
 	if err != nil {
 		return err
+	}
+
+	// Step 1b: OKE config (optional, saved for reinstall)
+	if err := oke.PromptAndSaveOKEConfig(stdinReader); err != nil {
+		fmt.Printf("Warning: OKE config failed: %v\n", err)
 	}
 
 	// Step 2: Setup Colima + K3s cluster
@@ -141,8 +151,7 @@ func installArgoCD() error {
 func promptEnvironmentLabel() (string, error) {
 	fmt.Print("Enter environment label for this cluster (e.g., dev, staging, prod): ")
 
-	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
+	input, err := stdinReader.ReadString('\n')
 	if err != nil {
 		return "", fmt.Errorf("failed to read input: %v", err)
 	}
@@ -160,8 +169,7 @@ func promptEnvironmentLabel() (string, error) {
 func promptGitLabPAT() (string, error) {
 	fmt.Print("Enter the GitLab PAT (Personal Access Token): ")
 
-	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
+	input, err := stdinReader.ReadString('\n')
 	if err != nil {
 		return "", fmt.Errorf("failed to read GitLab PAT: %v", err)
 	}
@@ -171,6 +179,57 @@ func promptGitLabPAT() (string, error) {
 		return "", fmt.Errorf("GitLab PAT cannot be empty")
 	}
 
+	// Save PAT to config for future non-interactive use (reinstall)
+	if err := common.ConfigSave("gitlab-pat", pat); err != nil {
+		fmt.Printf("Warning: failed to save GitLab PAT to config: %v\n", err)
+	}
+
 	fmt.Println("✅ GitLab PAT received")
 	return pat, nil
+}
+
+// ExecuteNonInteractive runs the full installation pipeline without user prompts.
+// Used by the reinstall command.
+func ExecuteNonInteractive(envLabel, gitlabPAT string) error {
+	fmt.Printf("📦 Non-interactive install (env=%s)\n", envLabel)
+
+	// Step 2: Setup Colima + K3s cluster
+	if err := validatePrerequisites(); err != nil {
+		return err
+	}
+	if err := installColimaIfNeeded(); err != nil {
+		return err
+	}
+	if err := setupK3sCluster(); err != nil {
+		return err
+	}
+	if err := enableEssentialAddons(); err != nil {
+		return err
+	}
+	if err := setupPostInstallation(envLabel); err != nil {
+		return err
+	}
+
+	// Step 3: Install infrastructure components
+	if err := installHelm(); err != nil {
+		return err
+	}
+	if err := installMetalLB(); err != nil {
+		return err
+	}
+	if err := installGateway(); err != nil {
+		return err
+	}
+	if err := installESO(gitlabPAT); err != nil {
+		return err
+	}
+	if err := installCertManager(); err != nil {
+		return err
+	}
+	if err := installArgoCD(); err != nil {
+		return err
+	}
+
+	// Step 4: Final verification
+	return verifyInstallation()
 }

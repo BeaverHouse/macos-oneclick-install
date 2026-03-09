@@ -2,6 +2,8 @@ package main
 
 import (
 	"austinhome/internal/logic/install"
+	"austinhome/internal/logic/reinstall"
+	"austinhome/internal/logic/schedule"
 	"austinhome/internal/logic/uninstall"
 	"fmt"
 	"os"
@@ -21,6 +23,12 @@ func main() {
 		executeInstall()
 	case "uninstall":
 		executeUninstall()
+	case "reinstall":
+		executeReinstall()
+	case "schedule":
+		executeSchedule()
+	case "unschedule":
+		executeUnschedule()
 	default:
 		handleUnknownCommand(command)
 	}
@@ -48,6 +56,39 @@ func executeUninstall() {
 	fmt.Println("✅ Uninstallation completed successfully!")
 }
 
+func executeReinstall() {
+	fmt.Println("🔄 Starting reinstall...")
+
+	if err := reinstall.Execute(); err != nil {
+		fmt.Printf("Error during reinstall: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("✅ Reinstall completed successfully!")
+}
+
+func executeSchedule() {
+	fmt.Println("📅 Setting up scheduled tasks...")
+
+	if err := schedule.Execute(); err != nil {
+		fmt.Printf("Error during schedule setup: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("✅ Schedule setup completed successfully!")
+}
+
+func executeUnschedule() {
+	fmt.Println("📅 Removing scheduled tasks...")
+
+	if err := schedule.Unschedule(); err != nil {
+		fmt.Printf("Error during unschedule: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("✅ Scheduled tasks removed successfully!")
+}
+
 func handleUnknownCommand(command string) {
 	fmt.Printf("Unknown command: %s\n", command)
 	showUsage()
@@ -60,6 +101,9 @@ func showUsage() {
 Commands:
   install    Install K3s cluster on macOS via Colima
   uninstall  Uninstall K3s cluster and clean up all resources
+  reinstall  Uninstall, reinstall, and register OKE (non-interactive)
+  schedule   Install launchd plists for auto reboot & reinstall
+  unschedule Remove launchd plists (schedule cleanup)
 
 `, appName)
 }

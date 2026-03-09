@@ -66,6 +66,20 @@ func RunCommandOutput(name string, args ...string) (string, error) {
 	return string(output), nil
 }
 
+// RunCommandInteractive runs a command with stdin connected to the terminal.
+// Use this for interactive commands like `oci setup config` that require user input.
+func RunCommandInteractive(name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	setupCommandEnvironment(cmd)
+
+	fmt.Printf("Running: %s %s\n", name, strings.Join(args, " "))
+	return cmd.Run()
+}
+
 func IsCommandAvailable(name string) bool {
 	_, err := exec.LookPath(name)
 	return err == nil
