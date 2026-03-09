@@ -36,14 +36,52 @@ K3s는 MicroK8s와 함께 간편하게 사용 가능하면서도, Production 환
 ## 사용 가능 커맨드
 
 ```bash
-# 전체 설치
-./austinhome install
+# 전체 설치 (K3s + 인프라 + OKE 등록 + kubeconfig export)
+austinhome install
 
-# 전체 제거 (Colima, Helm, 설정 파일 등 완전 삭제)
-./austinhome uninstall
+# 전체 제거 (Colima, Helm, 설정 파일 등 완전 삭제, 스케줄은 유지)
+austinhome uninstall
+
+# 무인 재설치 (uninstall → install → OKE 등록 → kubeconfig export)
+austinhome reinstall
+
+# 자동 재부팅/재설치 스케줄 등록 (바이너리 설치 포함)
+austinhome schedule
+
+# 스케줄 제거
+austinhome unschedule
 ```
 
-## TODO
+## 자동 복구
 
-Colima의 Memory Leak, 그리고 Mac mini or Colima의 네트워크 문제가 생기는 경우가 있습니다.  
-가장 확실한 해결법은 Mac mini를 완전히 재부팅하는 것입니다. 필요시 이를 자동화해야 합니다.
+Colima의 메모리 누수 및 네트워크 문제로 인해, 주기적인 재부팅과 재설치를 자동화합니다.
+
+`austinhome schedule` 실행 시:
+- **매월 1일 새벽 4시** 자동 재부팅 (launchd daemon)
+- **모든 부팅 60초 후** `austinhome reinstall` 자동 실행 (launchd agent)
+
+### 사전 조건
+
+- macOS 자동 로그인 활성화 (System Settings → Users & Groups)
+- 최초 1회 `austinhome install` 실행 (OCI 계정 설정, GitLab PAT, OKE cluster 정보가 `~/.austinhome/`에 저장됨)
+
+### 저장되는 설정 (`~/.austinhome/`)
+
+| 파일 | 내용 |
+|------|------|
+| `gitlab-pat` | GitLab Personal Access Token |
+| `oke-cluster-ocid` | OKE 클러스터 OCID |
+| `oke-region` | OKE 리전 |
+
+이 설정은 uninstall 시 삭제되지 않으며, `~/.oci/config`도 유지됩니다.
+
+### 로그 확인
+
+```bash
+cat /tmp/austinhome-reinstall.log
+```
+
+### 갱신이 필요한 경우
+
+- GitLab PAT 만료 → `~/.austinhome/gitlab-pat` 파일 내용 교체
+- OCI API key 만료/변경 → `oci setup config` 재실행
