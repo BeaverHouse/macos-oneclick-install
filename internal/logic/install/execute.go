@@ -68,7 +68,15 @@ func Execute() error {
 		return err
 	}
 
-	// Step 4: Final verification
+	// Step 4: OKE registration + kubeconfig export (non-fatal)
+	if err := oke.Register(); err != nil {
+		fmt.Printf("⚠️  Warning: OKE registration failed: %v\n", err)
+	}
+	if err := oke.ExportKubeconfig(); err != nil {
+		fmt.Printf("⚠️  Warning: Kubeconfig export failed: %v\n", err)
+	}
+
+	// Step 5: Final verification
 	return verifyInstallation()
 }
 
