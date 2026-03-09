@@ -14,6 +14,7 @@ const (
 	configKeyClusterOCID = "oke-cluster-ocid"
 	configKeyRegion      = "oke-region"
 	argocdNS             = "argo-project"
+	okeContextAlias      = "oke"
 )
 
 // PromptAndSaveOKEConfig ensures OCI CLI is set up, then asks for cluster OCID and region.
@@ -25,12 +26,15 @@ func PromptAndSaveOKEConfig(reader *bufio.Reader) error {
 	}
 
 	// 2. Check if ~/.oci/config exists; if not, run oci setup config
-	if err := ensureOCIConfig(); err != nil {
+	if err := ensureOCIConfig(reader); err != nil {
 		return err
 	}
 
 	// 3. Prompt for cluster OCID
-	fmt.Print("Enter OKE cluster OCID (leave empty to skip OKE setup): ")
+	fmt.Println("\n📋 OKE cluster OCID 확인 방법:")
+	fmt.Println("   OCI Console → Developer Services → Kubernetes Clusters (OKE)")
+	fmt.Println("   → 클러스터 선택 → Cluster Details 페이지의 OCID 복사")
+	fmt.Print("\nEnter OKE cluster OCID (leave empty to skip OKE setup): ")
 	ocidInput, err := reader.ReadString('\n')
 	if err != nil {
 		return fmt.Errorf("failed to read input: %v", err)
@@ -42,7 +46,9 @@ func PromptAndSaveOKEConfig(reader *bufio.Reader) error {
 	}
 
 	// 4. Prompt for region
-	fmt.Print("Enter OKE region (e.g., ap-chuncheon-1): ")
+	fmt.Println("\n📋 Region 확인 방법:")
+	fmt.Println("   OCI Console 우측 상단 리전 표시 확인 (e.g., ap-chuncheon-1, ap-seoul-1)")
+	fmt.Print("\nEnter OKE region: ")
 	regionInput, err := reader.ReadString('\n')
 	if err != nil {
 		return fmt.Errorf("failed to read input: %v", err)
@@ -63,8 +69,8 @@ func PromptAndSaveOKEConfig(reader *bufio.Reader) error {
 	return nil
 }
 
-// ensureOCIConfig checks if ~/.oci/config exists. If not, runs `oci setup config` interactively.
-func ensureOCIConfig() error {
+// ensureOCIConfig checks if ~/.oci/config exists. If not, guides user through oci setup config.
+func ensureOCIConfig(reader *bufio.Reader) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("failed to get home directory: %v", err)
@@ -76,9 +82,47 @@ func ensureOCIConfig() error {
 		return nil
 	}
 
-	fmt.Println("📦 OCI config not found. Running 'oci setup config'...")
-	fmt.Println("   (Follow the prompts to enter your tenancy OCID, user OCID, region, and API key path)")
-	return common.RunCommandInteractive("oci", "setup", "config")
+	fmt.Println("\n" + strings.Repeat("=", 60))
+	fmt.Println("  OCI CLI 초기 설정이 필요합니다")
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Println("\n다음 정보를 미리 준비하세요:")
+	fmt.Println("  1. Tenancy OCID  → OCI Console → Profile → Tenancy → OCID 복사")
+	fmt.Println("  2. User OCID     → OCI Console → Profile → My Profile → OCID 복사")
+	fmt.Println("  3. Region        → OCI Console 우측 상단 확인 (e.g., ap-chuncheon-1)")
+	fmt.Println()
+	fmt.Println("⚠️  설정 완료 후 생성되는 Public Key를 OCI Console에 등록해야 합니다:")
+	fmt.Println("   OCI Console → Profile → My Profile → API Keys → Add API Key")
+	fmt.Println("   → Paste Public Key → ~/.oci/oci_api_key_public.pem 내용 붙여넣기")
+
+	fmt.Print("\n준비되었나요? (Y/n): ")
+	input, _ := reader.ReadString('\n')
+	if strings.TrimSpace(strings.ToLower(input)) == "n" {
+		return fmt.Errorf("OCI setup cancelled by user")
+	}
+
+	fmt.Println("\n📦 Running 'oci setup config'...")
+	if err := common.RunCommandInteractive("oci", "setup", "config"); err != nil {
+		return err
+	}
+
+	// After setup, remind about API key registration
+	fmt.Println("\n" + strings.Repeat("=", 60))
+	fmt.Println("  API Key 등록 확인")
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Println("\n지금 OCI Console에서 Public Key를 등록하세요:")
+	fmt.Println("  1. OCI Console → Profile → My Profile → API Keys → Add API Key")
+	fmt.Println("  2. Paste Public Key 선택")
+	fmt.Printf("  3. 아래 명령어로 키 내용 확인: cat %s/.oci/oci_api_key_public.pem\n", home)
+	fmt.Println("  4. 키 내용을 붙여넣고 Add 클릭")
+
+	fmt.Print("\nAPI Key 등록을 완료했나요? (Y/n): ")
+	input, _ = reader.ReadString('\n')
+	if strings.TrimSpace(strings.ToLower(input)) == "n" {
+		return fmt.Errorf("API key registration not completed. Register the key and run 'austinhome install' again")
+	}
+
+	fmt.Println("✅ OCI config setup completed")
+	return nil
 }
 
 // loadOKEConfig reads cluster OCID and region from ~/.austinhome/.
@@ -114,9 +158,21 @@ func Register() error {
 		return err
 	}
 
-	// 3. Create OKE kubeconfig
+	// 3. Snapshot existing contexts, then create OKE kubeconfig
+	contextsBefore := getContextNames()
+
 	if err := createOKEKubeconfig(clusterOCID, region); err != nil {
 		return err
+	}
+
+	// 3b. Find newly created context and rename to "oke"
+	newContext := findNewContext(contextsBefore, getContextNames())
+	if newContext != "" {
+		if err := renameContext(newContext, okeContextAlias); err != nil {
+			fmt.Printf("Warning: failed to rename context %s → %s: %v\n", newContext, okeContextAlias, err)
+		}
+	} else {
+		fmt.Println("Warning: could not detect new OKE context name")
 	}
 
 	// 4. Get ArgoCD admin password
@@ -131,8 +187,7 @@ func Register() error {
 	}
 
 	// 6. Register OKE cluster
-	okeContextName := "context-" + clusterOCID
-	if err := argocdAddCluster(okeContextName); err != nil {
+	if err := argocdAddCluster(okeContextAlias); err != nil {
 		return err
 	}
 
@@ -163,13 +218,41 @@ func ensureArgoCDCLI() error {
 	return common.RunCommand("brew", "install", "argocd")
 }
 
+func getContextNames() map[string]bool {
+	output, err := common.RunCommandOutput("kubectl", "config", "get-contexts", "-o", "name")
+	if err != nil {
+		return nil
+	}
+	contexts := make(map[string]bool)
+	for _, name := range strings.Split(strings.TrimSpace(output), "\n") {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			contexts[name] = true
+		}
+	}
+	return contexts
+}
+
+func findNewContext(before, after map[string]bool) string {
+	for name := range after {
+		if !before[name] {
+			return name
+		}
+	}
+	return ""
+}
+
+func renameContext(oldName, newName string) error {
+	fmt.Printf("📝 Renaming context %s → %s\n", oldName, newName)
+	return common.RunCommand("kubectl", "config", "rename-context", oldName, newName)
+}
+
 func createOKEKubeconfig(clusterOCID, region string) error {
 	fmt.Println("📦 Creating OKE kubeconfig...")
 	return common.RunCommand("oci", "ce", "cluster", "create-kubeconfig",
 		"--cluster-id", clusterOCID,
 		"--region", region,
 		"--token-version", "2.0.0",
-		"--kube-endpoint", "PUBLIC_ENDPOINT",
 	)
 }
 

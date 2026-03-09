@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 //go:embed plist/me.haulrest.austinhome-reboot.plist
@@ -20,9 +19,25 @@ const (
 	reinstallLabel = "me.haulrest.austinhome-reinstall"
 )
 
-// Execute installs the launchd plist files for automatic reboot and reinstall.
+const binaryInstallPath = "/usr/local/bin/austinhome"
+
+// Execute installs the binary and launchd plist files for automatic reboot and reinstall.
 func Execute() error {
 	fmt.Println("📅 Setting up scheduled tasks...")
+
+	// 0. Install binary to /usr/local/bin/
+	fmt.Println("\n📦 Step 0: Install binary")
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to find current binary: %v", err)
+	}
+	if err := common.RunCommand("sudo", "cp", exe, binaryInstallPath); err != nil {
+		return fmt.Errorf("failed to install binary to %s: %v", binaryInstallPath, err)
+	}
+	if err := common.RunCommand("sudo", "chmod", "+x", binaryInstallPath); err != nil {
+		return fmt.Errorf("failed to set binary permissions: %v", err)
+	}
+	fmt.Printf("✅ Binary installed to %s\n", binaryInstallPath)
 
 	// 1. Install reboot plist (requires sudo → /Library/LaunchDaemons/)
 	fmt.Println("\n📦 Step 1: Monthly reboot schedule (requires sudo)")
@@ -79,8 +94,7 @@ func Execute() error {
 	fmt.Println("   On every boot: full reinstall (uninstall → install → OKE)")
 	fmt.Println("   Log: /tmp/austinhome-reinstall.log")
 
-	fmt.Println("\n⚠️  Prerequisites:")
+	fmt.Println("\n⚠️  Prerequisite:")
 	fmt.Println("   - Auto-login must be enabled (System Settings → Users & Groups)")
-	fmt.Println(strings.Repeat(" ", 5) + "- Binary must be at /usr/local/bin/austinhome")
 	return nil
 }
