@@ -1,6 +1,6 @@
 module austinhome
 
-go 1.25.5
+go 1.26.1
 
 require (
 	github.com/BeaverHouse/go-common v1.0.4
