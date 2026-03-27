@@ -46,10 +46,10 @@ austinhome uninstall
 austinhome reinstall
 
 # 자동 재부팅/재설치 스케줄 등록 (바이너리 설치 포함)
-austinhome schedule
+austinhome schedule install
 
 # 스케줄 제거
-austinhome unschedule
+austinhome schedule remove
 ```
 
 ## 자동 복구

@@ -1,12 +1,14 @@
 package install
 
 import (
-	"austinhome/internal/logic/common"
+	"austinhome/internal/command"
+	"austinhome/internal/ui"
 	"fmt"
 	"time"
+
+	"github.com/BeaverHouse/go-common/logger"
 )
 
-// MetalLB configuration
 const (
 	metalLBVersion         = "0.15.2"
 	metalLBNamespace       = "metallb-system"
@@ -16,7 +18,7 @@ const (
 )
 
 func InstallMetalLB() error {
-	fmt.Println("🔩 Installing MetalLB...")
+	ui.Log.Info("Installing MetalLB...")
 
 	if err := applyNamespace(); err != nil {
 		return err
@@ -34,41 +36,41 @@ func InstallMetalLB() error {
 		return err
 	}
 
-	fmt.Println("✅ Successfully installed MetalLB")
+	ui.Log.Info("Successfully installed MetalLB")
 	return nil
 }
 
 func applyNamespace() error {
-	fmt.Println("📋 Applying MetalLB namespace...")
-	return common.RunCommand("kubectl", "apply", "-f", metalLBNamespaceURL)
+	ui.Log.Info("Applying MetalLB namespace...")
+	return command.RunCommand("kubectl", "apply", "-f", metalLBNamespaceURL)
 }
 
 func applyMetalLBManifests() error {
-	fmt.Println("📦 Applying MetalLB manifests...")
+	ui.Log.Info("Applying MetalLB manifests...")
 	manifestURL := fmt.Sprintf("https://raw.githubusercontent.com/metallb/metallb/v%s/config/manifests/metallb-native.yaml", metalLBVersion)
-	return common.RunCommand("kubectl", "apply", "-f", manifestURL)
+	return command.RunCommand("kubectl", "apply", "-f", manifestURL)
 }
 
 func waitForMetalLBPods() error {
-	return common.WaitForPodsReady(metalLBNamespace, "app=metallb", metalLBPodReadyTimeout)
+	return command.WaitForPodsReady(metalLBNamespace, "app=metallb", metalLBPodReadyTimeout)
 }
 
 func applyIPConfig() error {
-	fmt.Println("🌐 Applying MetalLB IP configuration...")
-	return common.RunCommand("kubectl", "apply", "-f", metalLBIPConfigURL)
+	ui.Log.Info("Applying MetalLB IP configuration...")
+	return command.RunCommand("kubectl", "apply", "-f", metalLBIPConfigURL)
 }
 
 func verifyMetalLBInstallation() error {
-	fmt.Println("🔍 Verifying MetalLB installation...")
+	ui.Log.Info("Verifying MetalLB installation...")
 
-	fmt.Println("\n📋 MetalLB pods status:")
-	if err := common.RunCommand("kubectl", "get", "pods", "-n", metalLBNamespace); err != nil {
+	ui.Log.Info("MetalLB pods status:")
+	if err := command.RunCommand("kubectl", "get", "pods", "-n", metalLBNamespace); err != nil {
 		return err
 	}
 
-	fmt.Println("\n⚙️ MetalLB configuration:")
-	if err := common.RunCommand("kubectl", "get", "ipaddresspool", "-n", metalLBNamespace); err != nil {
-		fmt.Printf("Warning: failed to get IP address pool: %v\n", err)
+	ui.Log.Info("MetalLB configuration:")
+	if err := command.RunCommand("kubectl", "get", "ipaddresspool", "-n", metalLBNamespace); err != nil {
+		ui.Log.Warn("Failed to get IP address pool", logger.F("error", err))
 	}
 
 	return nil

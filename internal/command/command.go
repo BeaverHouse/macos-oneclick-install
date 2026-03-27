@@ -1,25 +1,26 @@
-package common
+package command
 
 import (
+	"austinhome/internal/ui"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/BeaverHouse/go-common/logger"
 )
 
 func setupCommandEnvironment(cmd *exec.Cmd) {
-	// Start with current environment
 	env := os.Environ()
 
-	// Find and update PATH
 	pathUpdated := false
 	homebrewPaths := "/usr/local/bin:/opt/homebrew/bin"
 
 	for i, envVar := range env {
 		if strings.HasPrefix(envVar, "PATH=") {
-			currentPath := envVar[5:] // Remove "PATH="
+			currentPath := envVar[5:]
 			if !strings.Contains(currentPath, "/usr/local/bin") || !strings.Contains(currentPath, "/opt/homebrew/bin") {
 				newPath := homebrewPaths + ":" + currentPath
 				env[i] = "PATH=" + newPath
@@ -29,7 +30,6 @@ func setupCommandEnvironment(cmd *exec.Cmd) {
 		}
 	}
 
-	// If PATH wasn't found, add it
 	if !pathUpdated {
 		env = append(env, "PATH="+homebrewPaths+":/usr/bin:/bin")
 	}
@@ -42,21 +42,18 @@ func RunCommand(name string, args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	// Set up environment with enhanced PATH
 	setupCommandEnvironment(cmd)
 
-	fmt.Printf("Running: %s %s\n", name, strings.Join(args, " "))
+	ui.Log.Debug("Running command", logger.F("command", name), logger.F("args", strings.Join(args, " ")))
 	return cmd.Run()
 }
 
-// RunCommandOutput runs a command and returns its output as a string
 func RunCommandOutput(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
 
-	// Set up environment with enhanced PATH
 	setupCommandEnvironment(cmd)
 
-	fmt.Printf("Running: %s %s\n", name, strings.Join(args, " "))
+	ui.Log.Debug("Running command", logger.F("command", name), logger.F("args", strings.Join(args, " ")))
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -66,8 +63,6 @@ func RunCommandOutput(name string, args ...string) (string, error) {
 	return string(output), nil
 }
 
-// RunCommandInteractive runs a command with stdin connected to the terminal.
-// Use this for interactive commands like `oci setup config` that require user input.
 func RunCommandInteractive(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Stdin = os.Stdin
@@ -76,7 +71,7 @@ func RunCommandInteractive(name string, args ...string) error {
 
 	setupCommandEnvironment(cmd)
 
-	fmt.Printf("Running: %s %s\n", name, strings.Join(args, " "))
+	ui.Log.Debug("Running command", logger.F("command", name), logger.F("args", strings.Join(args, " ")))
 	return cmd.Run()
 }
 
@@ -85,7 +80,6 @@ func IsCommandAvailable(name string) bool {
 	return err == nil
 }
 
-// RunCommandWithTimeout runs a command with a timeout
 func RunCommandWithTimeout(timeout time.Duration, name string, args ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -94,10 +88,9 @@ func RunCommandWithTimeout(timeout time.Duration, name string, args ...string) e
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	// Set up environment with enhanced PATH
 	setupCommandEnvironment(cmd)
 
-	fmt.Printf("Running: %s %s (timeout: %v)\n", name, strings.Join(args, " "), timeout)
+	ui.Log.Debug("Running command", logger.F("command", name), logger.F("args", strings.Join(args, " ")), logger.F("timeout", timeout))
 	err := cmd.Run()
 
 	if ctx.Err() == context.DeadlineExceeded {
@@ -107,15 +100,13 @@ func RunCommandWithTimeout(timeout time.Duration, name string, args ...string) e
 	return err
 }
 
-// WaitForPodsReady waits for pods to be ready in a given namespace with a selector
 func WaitForPodsReady(namespace, selector string, maxWaitTime time.Duration) error {
 	selectorText := selector
 	if selectorText == "" {
 		selectorText = "all pods"
 	}
 
-	fmt.Printf("⏳ Waiting for pods in namespace %s (%s) to be ready (max %v)...\n",
-		namespace, selectorText, maxWaitTime)
+	ui.Log.Info("Waiting for pods to be ready", logger.F("namespace", namespace), logger.F("selector", selectorText), logger.F("maxWait", maxWaitTime))
 
 	checkInterval := 10 * time.Second
 	startTime := time.Now()
@@ -123,7 +114,6 @@ func WaitForPodsReady(namespace, selector string, maxWaitTime time.Duration) err
 	for time.Since(startTime) < maxWaitTime {
 		var err error
 		if selector == "" {
-			// Use --all when no selector is provided
 			err = RunCommand("kubectl", "wait", "--namespace", namespace,
 				"--for=condition=ready", "pod", "--all", "--timeout=0s")
 		} else {
@@ -132,11 +122,11 @@ func WaitForPodsReady(namespace, selector string, maxWaitTime time.Duration) err
 		}
 
 		if err == nil {
-			fmt.Println("✅ Pods are ready!")
+			ui.Log.Info("Pods are ready!")
 			return nil
 		}
 
-		fmt.Printf("⏳ Still waiting... (%v elapsed)\n", time.Since(startTime).Truncate(time.Second))
+		ui.Log.Info("Still waiting...", logger.F("elapsed", time.Since(startTime).Truncate(time.Second)))
 		time.Sleep(checkInterval)
 	}
 

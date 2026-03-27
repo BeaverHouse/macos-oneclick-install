@@ -1,12 +1,14 @@
 package oke
 
 import (
+	"austinhome/internal/command"
+	"austinhome/internal/ui"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"austinhome/internal/logic/common"
+	"github.com/BeaverHouse/go-common/logger"
 )
 
 const (
@@ -15,21 +17,16 @@ const (
 	exportFileName = "kubeconfig"
 )
 
-// ExportKubeconfig exports the merged kubeconfig with K3s server address
-// replaced by the Mac Mini LAN IP, so it can be used from the MacBook.
 func ExportKubeconfig() error {
-	fmt.Println("\n📦 Step: Export kubeconfig for MacBook")
+	ui.Log.Info("Step: Export kubeconfig for MacBook")
 
-	// 1. Get flattened kubeconfig
-	output, err := common.RunCommandOutput("kubectl", "config", "view", "--flatten")
+	output, err := command.RunCommandOutput("kubectl", "config", "view", "--flatten")
 	if err != nil {
 		return fmt.Errorf("failed to flatten kubeconfig: %v", err)
 	}
 
-	// 2. Replace 127.0.0.1 with Mac Mini LAN IP for K3s access
 	replaced := strings.ReplaceAll(output, "https://127.0.0.1:", "https://"+macMiniLANIP+":")
 
-	// 3. Write to ~/shared/kubeconfig
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("failed to get home directory: %v", err)
@@ -45,7 +42,7 @@ func ExportKubeconfig() error {
 		return fmt.Errorf("failed to write kubeconfig: %v", err)
 	}
 
-	fmt.Printf("✅ Kubeconfig exported to %s\n", exportPath)
-	fmt.Println("   K3s server address replaced: 127.0.0.1 → " + macMiniLANIP)
+	ui.Log.Info("Kubeconfig exported", logger.F("path", exportPath))
+	ui.Log.Info("K3s server address replaced", logger.F("from", "127.0.0.1"), logger.F("to", macMiniLANIP))
 	return nil
 }
