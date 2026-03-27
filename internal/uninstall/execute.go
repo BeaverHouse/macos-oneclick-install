@@ -1,18 +1,20 @@
 package uninstall
 
-import "fmt"
+import (
+	"austinhome/internal/colima"
+	"austinhome/internal/ui"
+
+	"github.com/BeaverHouse/go-common/logger"
+)
 
 func Execute() error {
-	// Stop and delete Colima instance
-	stopColima()
-	deleteColima()
+	colima.Stop()
+	colima.Delete()
 
-	// Uninstall Helm if needed
 	if err := UninstallHelm(); err != nil {
-		fmt.Printf("Warning: Helm uninstall failed: %v\n", err)
+		ui.Log.Warn("Helm uninstall failed", logger.F("error", err))
 	}
 
-	// Cleanup remaining resources
 	if err := cleanupDirectories(); err != nil {
 		return err
 	}

@@ -1,5 +1,9 @@
 # K8s One-click Install
 
+> [!WARNING]
+> This CLI is changed to use [Cobra](https://github.com/spf13/cobra) CLI framework.
+> Full functionality is not validated in real environment, so some features may not work as expected.
+
 로컬 개발 환경에서 Kubernetes 클러스터(K3s + Colima)와 필수 인프라 도구들을 자동으로 설치하고 설정합니다. ArgoCD를 통한 GitOps 워크플로우를 지원하며, External Secrets Operator로 GitLab과 연동하여 시크릿을 관리합니다.
 
 ## 설치 항목
@@ -45,11 +49,14 @@ austinhome uninstall
 # 무인 재설치 (uninstall → install → OKE 등록 → kubeconfig export)
 austinhome reinstall
 
+# kubeconfig export (LAN IP로 변환하여 ~/Downloads에 저장)
+austinhome export-kubeconfig
+
 # 자동 재부팅/재설치 스케줄 등록 (바이너리 설치 포함)
-austinhome schedule
+austinhome schedule install
 
 # 스케줄 제거
-austinhome unschedule
+austinhome schedule remove
 ```
 
 ## 자동 복구
@@ -57,6 +64,7 @@ austinhome unschedule
 Colima의 메모리 누수 및 네트워크 문제로 인해, 주기적인 재부팅과 재설치를 자동화합니다.
 
 `austinhome schedule` 실행 시:
+
 - **매월 1일 새벽 4시** 자동 재부팅 (launchd daemon)
 - **모든 부팅 60초 후** `austinhome reinstall` 자동 실행 (launchd agent)
 
@@ -67,11 +75,11 @@ Colima의 메모리 누수 및 네트워크 문제로 인해, 주기적인 재�
 
 ### 저장되는 설정 (`~/.austinhome/`)
 
-| 파일 | 내용 |
-|------|------|
-| `gitlab-pat` | GitLab Personal Access Token |
-| `oke-cluster-ocid` | OKE 클러스터 OCID |
-| `oke-region` | OKE 리전 |
+| 파일               | 내용                         |
+| ------------------ | ---------------------------- |
+| `gitlab-pat`       | GitLab Personal Access Token |
+| `oke-cluster-ocid` | OKE 클러스터 OCID            |
+| `oke-region`       | OKE 리전                     |
 
 이 설정은 uninstall 시 삭제되지 않으며, `~/.oci/config`도 유지됩니다.
 

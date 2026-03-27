@@ -1,15 +1,17 @@
-package common
+package config
 
 import (
+	"austinhome/internal/ui"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/BeaverHouse/go-common/logger"
 )
 
 const configDirName = ".austinhome"
 
-// configDir returns the absolute path to ~/.austinhome/
 func configDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -18,8 +20,7 @@ func configDir() (string, error) {
 	return filepath.Join(home, configDirName), nil
 }
 
-// ConfigSave writes a value to ~/.austinhome/<key>
-func ConfigSave(key, value string) error {
+func Save(key, value string) error {
 	dir, err := configDir()
 	if err != nil {
 		return err
@@ -34,12 +35,11 @@ func ConfigSave(key, value string) error {
 		return fmt.Errorf("failed to write config %s: %v", key, err)
 	}
 
-	fmt.Printf("✅ Config saved: %s\n", key)
+	ui.Log.Info("Config saved", logger.F("key", key))
 	return nil
 }
 
-// ConfigLoad reads a value from ~/.austinhome/<key>
-func ConfigLoad(key string) (string, error) {
+func Load(key string) (string, error) {
 	dir, err := configDir()
 	if err != nil {
 		return "", err

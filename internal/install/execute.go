@@ -1,22 +1,22 @@
 package install
 
 import (
-	"austinhome/internal/logic/common"
-	"austinhome/internal/logic/oke"
+	"austinhome/internal/config"
+	"austinhome/internal/oke"
+	"austinhome/internal/ui"
 	"bufio"
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/BeaverHouse/go-common/logger"
 )
 
 const defaultEnvLabel = "dev"
 
-// stdinReader is shared across all prompts to avoid bufio buffer conflicts.
 var stdinReader = bufio.NewReader(os.Stdin)
 
-// Execute runs the full installation pipeline for K3s cluster on macOS.
 func Execute() error {
-	// Step 1: Gather user input
 	envLabel, err := promptEnvironmentLabel()
 	if err != nil {
 		return err
@@ -26,12 +26,10 @@ func Execute() error {
 		return err
 	}
 
-	// Step 1b: OKE config (optional, saved for reinstall)
 	if err := oke.PromptAndSaveOKEConfig(stdinReader); err != nil {
-		fmt.Printf("Warning: OKE config failed: %v\n", err)
+		ui.Log.Warn("OKE config failed", logger.F("error", err))
 	}
 
-	// Step 2: Setup Colima + K3s cluster
 	if err := validatePrerequisites(); err != nil {
 		return err
 	}
@@ -48,7 +46,6 @@ func Execute() error {
 		return err
 	}
 
-	// Step 3: Install infrastructure components
 	if err := installHelm(); err != nil {
 		return err
 	}
@@ -68,26 +65,22 @@ func Execute() error {
 		return err
 	}
 
-	// Step 4: OKE registration + kubeconfig export (non-fatal)
 	if err := oke.Register(); err != nil {
-		fmt.Printf("⚠️  Warning: OKE registration failed: %v\n", err)
+		ui.Log.Warn("OKE registration failed", logger.F("error", err))
 	}
 	if err := oke.ExportKubeconfig(); err != nil {
-		fmt.Printf("⚠️  Warning: Kubeconfig export failed: %v\n", err)
+		ui.Log.Warn("Kubeconfig export failed", logger.F("error", err))
 	}
 
-	// Step 5: Final verification
 	return verifyInstallation()
 }
-
-// Infrastructure component installers with verification
 
 func installHelm() error {
 	if err := InstallHelm(); err != nil {
 		return err
 	}
 	if err := verifyHelmInstallation(); err != nil {
-		fmt.Printf("Warning: Helm verification failed: %v\n", err)
+		ui.Log.Warn("Helm verification failed", logger.F("error", err))
 	}
 	return nil
 }
@@ -97,7 +90,7 @@ func installMetalLB() error {
 		return err
 	}
 	if err := verifyMetalLBInstallation(); err != nil {
-		fmt.Printf("Warning: MetalLB verification failed: %v\n", err)
+		ui.Log.Warn("MetalLB verification failed", logger.F("error", err))
 	}
 	return nil
 }
@@ -107,12 +100,11 @@ func installGateway() error {
 		return err
 	}
 	if err := verifyNginxGatewayInstallation(); err != nil {
-		fmt.Printf("Warning: NGINX Gateway Fabric verification failed: %v\n", err)
+		ui.Log.Warn("NGINX Gateway Fabric verification failed", logger.F("error", err))
 	}
-	// Gateway connectivity is critical - fail installation if this doesn't work
 	if err := VerifyGatewayConnectivity(); err != nil {
-		fmt.Printf("❌ Critical: Gateway connectivity verification failed: %v\n", err)
-		fmt.Println("🛑 Installation aborted due to gateway connectivity issues")
+		ui.Log.Error("Gateway connectivity verification failed", logger.F("error", err))
+		ui.Log.Error("Installation aborted due to gateway connectivity issues")
 		return err
 	}
 	return nil
@@ -123,13 +115,13 @@ func installESO(gitlabPAT string) error {
 		return err
 	}
 	if err := verifyESOInstallation(); err != nil {
-		fmt.Printf("Warning: ESO verification failed: %v\n", err)
+		ui.Log.Warn("ESO verification failed", logger.F("error", err))
 	}
 	if err := SetupESOSecretStore(gitlabPAT); err != nil {
 		return err
 	}
 	if err := verifyESOSecretStore(); err != nil {
-		fmt.Printf("Warning: ESO SecretStore verification failed: %v\n", err)
+		ui.Log.Warn("ESO SecretStore verification failed", logger.F("error", err))
 	}
 	return nil
 }
@@ -139,7 +131,7 @@ func installCertManager() error {
 		return err
 	}
 	if err := verifyCertManagerInstallation(); err != nil {
-		fmt.Printf("Warning: Cert-Manager verification failed: %v\n", err)
+		ui.Log.Warn("Cert-Manager verification failed", logger.F("error", err))
 	}
 	return nil
 }
@@ -149,12 +141,10 @@ func installArgoCD() error {
 		return err
 	}
 	if err := verifyArgoCDInstallation(); err != nil {
-		fmt.Printf("Warning: ArgoCD verification failed: %v\n", err)
+		ui.Log.Warn("ArgoCD verification failed", logger.F("error", err))
 	}
 	return nil
 }
-
-// User input prompts
 
 func promptEnvironmentLabel() (string, error) {
 	fmt.Print("Enter environment label for this cluster (e.g., dev, staging, prod): ")
@@ -167,10 +157,10 @@ func promptEnvironmentLabel() (string, error) {
 	envLabel := strings.TrimSpace(input)
 	if envLabel == "" {
 		envLabel = defaultEnvLabel
-		fmt.Printf("Using default label: %s\n", defaultEnvLabel)
+		ui.Log.Info("Using default label", logger.F("label", defaultEnvLabel))
 	}
 
-	fmt.Printf("✅ Environment label set to: %s\n", envLabel)
+	ui.Log.Info("Environment label set", logger.F("label", envLabel))
 	return envLabel, nil
 }
 
@@ -187,21 +177,17 @@ func promptGitLabPAT() (string, error) {
 		return "", fmt.Errorf("GitLab PAT cannot be empty")
 	}
 
-	// Save PAT to config for future non-interactive use (reinstall)
-	if err := common.ConfigSave("gitlab-pat", pat); err != nil {
-		fmt.Printf("Warning: failed to save GitLab PAT to config: %v\n", err)
+	if err := config.Save("gitlab-pat", pat); err != nil {
+		ui.Log.Warn("Failed to save GitLab PAT to config", logger.F("error", err))
 	}
 
-	fmt.Println("✅ GitLab PAT received")
+	ui.Log.Info("GitLab PAT received")
 	return pat, nil
 }
 
-// ExecuteNonInteractive runs the full installation pipeline without user prompts.
-// Used by the reinstall command.
 func ExecuteNonInteractive(envLabel, gitlabPAT string) error {
-	fmt.Printf("📦 Non-interactive install (env=%s)\n", envLabel)
+	ui.Log.Info("Non-interactive install", logger.F("env", envLabel))
 
-	// Step 2: Setup Colima + K3s cluster
 	if err := validatePrerequisites(); err != nil {
 		return err
 	}
@@ -218,7 +204,6 @@ func ExecuteNonInteractive(envLabel, gitlabPAT string) error {
 		return err
 	}
 
-	// Step 3: Install infrastructure components
 	if err := installHelm(); err != nil {
 		return err
 	}
@@ -238,6 +223,5 @@ func ExecuteNonInteractive(envLabel, gitlabPAT string) error {
 		return err
 	}
 
-	// Step 4: Final verification
 	return verifyInstallation()
 }
