@@ -22,6 +22,7 @@ func init() {
 	rootCmd.AddCommand(InstallCmd)
 	rootCmd.AddCommand(UninstallCmd)
 	rootCmd.AddCommand(ReinstallCmd)
+	rootCmd.AddCommand(ExportKubeconfigCmd)
 
 	scheduleCmd := &cobra.Command{
 		Use:   "schedule",
