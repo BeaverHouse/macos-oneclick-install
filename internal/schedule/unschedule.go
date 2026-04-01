@@ -44,6 +44,11 @@ func Unschedule() error {
 	}
 	ui.Log.Info("Boot-time reinstall agent removed")
 
+	ui.Log.Info("Step 3: Remove pf port forwarding")
+	if err := removePF(); err != nil {
+		ui.Log.Warn("Failed to remove pf", logger.F("error", err))
+	}
+
 	ui.Log.Info("All scheduled tasks removed!")
 	return nil
 }

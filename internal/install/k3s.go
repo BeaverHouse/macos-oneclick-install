@@ -15,7 +15,7 @@ const (
 	colimaCPUs   = "4"
 	colimaMemory = "8"
 
-	k3sReadyTimeout = 180 * time.Second
+	k3sReadyTimeout = 600 * time.Second
 )
 
 func validatePrerequisites() error {
@@ -61,6 +61,7 @@ func startColimaWithK3s() error {
 		"--network-mode", "bridged",
 		"--network-interface", "en1",
 		"--kubernetes",
+		"--kubernetes-disable", "servicelb",
 		"--dns", "8.8.8.8",
 		"--dns", "8.8.4.4")
 

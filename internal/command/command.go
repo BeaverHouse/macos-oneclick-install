@@ -12,6 +12,16 @@ import (
 	"github.com/BeaverHouse/go-common/logger"
 )
 
+func init() {
+	path := os.Getenv("PATH")
+	for _, dir := range []string{"/opt/homebrew/bin", "/usr/local/bin"} {
+		if !strings.Contains(path, dir) {
+			path = dir + ":" + path
+		}
+	}
+	os.Setenv("PATH", path)
+}
+
 func setupCommandEnvironment(cmd *exec.Cmd) {
 	env := os.Environ()
 

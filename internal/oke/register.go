@@ -5,9 +5,11 @@ import (
 	"austinhome/internal/config"
 	"austinhome/internal/ui"
 	"bufio"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -263,14 +265,29 @@ func getArgoCDAdminPassword() (string, error) {
 }
 
 func argocdLogin(password string) error {
-	ui.Log.Info("Logging in to ArgoCD...")
+	ui.Log.Info("Logging in to ArgoCD via port-forward...")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	pfCmd := exec.CommandContext(ctx, "kubectl", "port-forward", "svc/argocd-server", "-n", argocdNS, "18443:443")
+	pfCmd.Stdout = nil
+	pfCmd.Stderr = nil
+	if err := pfCmd.Start(); err != nil {
+		return fmt.Errorf("failed to start port-forward: %v", err)
+	}
+	defer func() {
+		cancel()
+		pfCmd.Wait()
+	}()
+
+	time.Sleep(3 * time.Second)
 
 	maxRetries := 12
 	for i := range maxRetries {
-		err := command.RunCommand("argocd", "login", "argocd.haulrest.me",
+		err := command.RunCommand("argocd", "login", "localhost:18443",
 			"--username", "admin",
 			"--password", password,
-			"--grpc-web",
 			"--insecure",
 		)
 		if err == nil {

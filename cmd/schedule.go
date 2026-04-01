@@ -15,6 +15,13 @@ var ScheduleInstallCmd = &cobra.Command{
 	RunE:  runScheduleInstall,
 }
 
+var ScheduleTriggerCmd = &cobra.Command{
+	Use:   "trigger",
+	Short: "Run full cycle: reinstall → reboot → reinstall",
+	Long:  `Verify reinstall pipeline works, then reboot. After reboot, LaunchAgent runs reinstall again automatically.`,
+	RunE:  runScheduleTrigger,
+}
+
 var ScheduleRemoveCmd = &cobra.Command{
 	Use:   "remove",
 	Short: "Remove launchd plists (schedule cleanup)",
@@ -30,6 +37,16 @@ func runScheduleInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	ui.Log.Info("Schedule setup completed successfully!")
+	return nil
+}
+
+func runScheduleTrigger(cmd *cobra.Command, args []string) error {
+	ui.Log.Info("Triggering full reboot cycle...")
+
+	if err := schedule.Trigger(); err != nil {
+		return fmt.Errorf("trigger failed: %w", err)
+	}
+
 	return nil
 }
 

@@ -35,5 +35,6 @@ func init() {
 	}
 	scheduleCmd.AddCommand(ScheduleInstallCmd)
 	scheduleCmd.AddCommand(ScheduleRemoveCmd)
+	scheduleCmd.AddCommand(ScheduleTriggerCmd)
 	rootCmd.AddCommand(scheduleCmd)
 }
