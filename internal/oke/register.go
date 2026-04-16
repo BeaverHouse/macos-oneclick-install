@@ -267,6 +267,8 @@ func getArgoCDAdminPassword() (string, error) {
 }
 
 // argocdLogin logs in to the local K3s ArgoCD server via kubectl port-forward using admin credentials.
+// Port-forward is used instead of domain + SSO because on a fresh install the domain
+// may not yet be reachable (DNS/ingress not updated), which breaks SSO login.
 // See https://argo-cd.readthedocs.io/en/stable/user-guide/commands/argocd_login/
 func argocdLogin(password string) error {
 	ui.Log.Info("Logging in to ArgoCD via port-forward...")
