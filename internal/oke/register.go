@@ -195,6 +195,8 @@ func ensureOCICLI() error {
 	return command.RunCommand("brew", "install", "oci-cli")
 }
 
+// ensureArgoCDCLI installs the ArgoCD CLI via Homebrew if not already available.
+// See https://argo-cd.readthedocs.io/en/stable/cli_installation/
 func ensureArgoCDCLI() error {
 	if command.IsCommandAvailable("argocd") {
 		ui.Log.Info("ArgoCD CLI already installed")
@@ -264,6 +266,8 @@ func getArgoCDAdminPassword() (string, error) {
 	return string(decoded), nil
 }
 
+// argocdLogin logs in to the local K3s ArgoCD server via kubectl port-forward using admin credentials.
+// See https://argo-cd.readthedocs.io/en/stable/user-guide/commands/argocd_login/
 func argocdLogin(password string) error {
 	ui.Log.Info("Logging in to ArgoCD via port-forward...")
 
@@ -302,6 +306,8 @@ func argocdLogin(password string) error {
 	return fmt.Errorf("failed to login to ArgoCD after %d retries", maxRetries)
 }
 
+// argocdAddCluster registers the given kubectl context as an external cluster in ArgoCD.
+// See https://argo-cd.readthedocs.io/en/stable/user-guide/commands/argocd_cluster_add/
 func argocdAddCluster(okeContextName string) error {
 	ui.Log.Info("Registering OKE cluster with ArgoCD...")
 	return command.RunCommand("argocd", "cluster", "add", okeContextName,
