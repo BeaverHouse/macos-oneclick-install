@@ -5,7 +5,6 @@ import (
 	"austinhome/internal/config"
 	"austinhome/internal/ui"
 	"bufio"
-	"context"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -21,6 +20,14 @@ const (
 	configKeyRegion      = "oke-region"
 	argocdNS             = "argo-project"
 	okeContextAlias      = "oke"
+	k3sContextAlias      = "colima-k3s-homeserver"
+
+	argocdManagerSAName        = "argocd-manager"
+	argocdManagerSANamespace   = "kube-system"
+	argocdManagerCRBName       = "argocd-manager-role-binding"
+	argocdManagerSecretName    = "argocd-manager-token"
+	argocdClusterSecretName    = "cluster-oke"
+	tokenPopulationMaxWaitTime = 30 * time.Second
 )
 
 func PromptAndSaveOKEConfig(reader *bufio.Reader) error {
@@ -146,10 +153,6 @@ func Register() error {
 		return err
 	}
 
-	if err := ensureArgoCDCLI(); err != nil {
-		return err
-	}
-
 	contextsBefore := getContextNames()
 
 	if err := createOKEKubeconfig(clusterOCID, region); err != nil {
@@ -165,24 +168,178 @@ func Register() error {
 		ui.Log.Warn("Could not detect new OKE context name")
 	}
 
-	adminPW, err := getArgoCDAdminPassword()
+	if err := useContext(okeContextAlias); err != nil {
+		return err
+	}
+
+	if err := recreateArgoCDManagerOnOKE(); err != nil {
+		return err
+	}
+
+	token, caData, server, err := extractClusterCredentials()
 	if err != nil {
 		return err
 	}
 
-	if err := argocdLogin(adminPW); err != nil {
+	if err := useContext(k3sContextAlias); err != nil {
 		return err
 	}
 
-	if err := argocdAddCluster(okeContextAlias); err != nil {
+	if err := applyArgoCDClusterSecret(token, caData, server); err != nil {
 		return err
-	}
-
-	if err := command.RunCommand("argocd", "cluster", "list"); err != nil {
-		ui.Log.Warn("Could not list ArgoCD clusters", logger.F("error", err))
 	}
 
 	ui.Log.Info("OKE cluster registered with ArgoCD")
+	return nil
+}
+
+func useContext(name string) error {
+	ui.Log.Info("Switching kubectl context", logger.F("context", name))
+	if err := command.RunCommand("kubectl", "config", "use-context", name); err != nil {
+		return fmt.Errorf("failed to switch context to %s: %v", name, err)
+	}
+	return nil
+}
+
+// recreateArgoCDManagerOnOKE deletes any existing argocd-manager SA/CRB/Secret on OKE
+// and creates fresh ones, which invalidates the previous bearer token. The Secret type
+// kubernetes.io/service-account-token still issues long-lived tokens on K8s 1.24+.
+// Must be called with kubectl context pointing at OKE.
+// See https://kubernetes.io/docs/reference/access-authn-authz/service-accounts-admin/#manual-secret-management-for-serviceaccounts
+func recreateArgoCDManagerOnOKE() error {
+	ui.Log.Info("Recreating argocd-manager on OKE...")
+
+	command.RunCommand("kubectl", "delete", "clusterrolebinding", argocdManagerCRBName, "--ignore-not-found")
+	command.RunCommand("kubectl", "delete", "secret", argocdManagerSecretName, "-n", argocdManagerSANamespace, "--ignore-not-found")
+	command.RunCommand("kubectl", "delete", "serviceaccount", argocdManagerSAName, "-n", argocdManagerSANamespace, "--ignore-not-found")
+
+	manifest := fmt.Sprintf(`---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: %s
+  namespace: %s
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: %s
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: %s
+  namespace: %s
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: %s
+  namespace: %s
+  annotations:
+    kubernetes.io/service-account.name: %s
+type: kubernetes.io/service-account-token
+`, argocdManagerSAName, argocdManagerSANamespace,
+		argocdManagerCRBName,
+		argocdManagerSAName, argocdManagerSANamespace,
+		argocdManagerSecretName, argocdManagerSANamespace, argocdManagerSAName)
+
+	if err := kubectlApplyStdin(manifest); err != nil {
+		return fmt.Errorf("failed to apply argocd-manager manifests: %v", err)
+	}
+	return nil
+}
+
+func kubectlApplyStdin(manifest string) error {
+	cmd := exec.Command("kubectl", "apply", "-f", "-")
+	cmd.Stdin = strings.NewReader(manifest)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// extractClusterCredentials waits for the SA token Secret to be populated,
+// then returns (token, caData (base64), server URL).
+// Must be called with kubectl context pointing at OKE.
+func extractClusterCredentials() (string, string, string, error) {
+	ui.Log.Info("Waiting for argocd-manager token to populate...")
+
+	deadline := time.Now().Add(tokenPopulationMaxWaitTime)
+	var tokenB64, caData string
+	for time.Now().Before(deadline) {
+		t, err := command.RunCommandOutput("kubectl", "get", "secret", argocdManagerSecretName,
+			"-n", argocdManagerSANamespace, "-o", "jsonpath={.data.token}")
+		if err == nil && strings.TrimSpace(t) != "" {
+			tokenB64 = strings.TrimSpace(t)
+			c, err := command.RunCommandOutput("kubectl", "get", "secret", argocdManagerSecretName,
+				"-n", argocdManagerSANamespace, "-o", "jsonpath={.data.ca\\.crt}")
+			if err == nil && strings.TrimSpace(c) != "" {
+				caData = strings.TrimSpace(c)
+				break
+			}
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	if tokenB64 == "" || caData == "" {
+		return "", "", "", fmt.Errorf("token/ca did not populate within %v", tokenPopulationMaxWaitTime)
+	}
+
+	tokenBytes, err := base64.StdEncoding.DecodeString(tokenB64)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to decode token: %v", err)
+	}
+
+	server, err := command.RunCommandOutput("kubectl", "config", "view",
+		"-o", "jsonpath={.clusters[?(@.name==\""+getCurrentClusterName()+"\")].cluster.server}")
+	if err != nil || strings.TrimSpace(server) == "" {
+		return "", "", "", fmt.Errorf("failed to get OKE server URL: %v", err)
+	}
+
+	return string(tokenBytes), caData, strings.TrimSpace(server), nil
+}
+
+func getCurrentClusterName() string {
+	out, err := command.RunCommandOutput("kubectl", "config", "view",
+		"-o", "jsonpath={.contexts[?(@.name==\""+okeContextAlias+"\")].context.cluster}")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
+// applyArgoCDClusterSecret creates the ArgoCD cluster secret on the K3s cluster.
+// bearerToken is the raw token string; caData stays base64-encoded as it appears
+// in the source SA Secret.
+// Must be called with kubectl context pointing at K3s.
+// See https://argo-cd.readthedocs.io/en/stable/operator-manual/declarative-setup/#clusters
+// Reference: https://medium.com/pickme-engineering-blog/how-to-connect-an-external-kubernetes-cluster-to-argo-cd-using-bearer-token-authentication-d9ab093f081d
+func applyArgoCDClusterSecret(token, caDataB64, server string) error {
+	ui.Log.Info("Applying ArgoCD cluster secret on K3s...", logger.F("server", server))
+
+	configJSON := fmt.Sprintf(`{"bearerToken":%q,"tlsClientConfig":{"caData":%q}}`, token, caDataB64)
+
+	manifest := fmt.Sprintf(`---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: %s
+  namespace: %s
+  labels:
+    argocd.argoproj.io/secret-type: cluster
+type: Opaque
+stringData:
+  name: %s
+  server: %s
+  config: |
+    %s
+`, argocdClusterSecretName, argocdNS, okeContextAlias, server, configJSON)
+
+	if err := kubectlApplyStdin(manifest); err != nil {
+		return fmt.Errorf("failed to apply ArgoCD cluster secret: %v", err)
+	}
 	return nil
 }
 
@@ -193,17 +350,6 @@ func ensureOCICLI() error {
 	}
 	ui.Log.Info("Installing OCI CLI via Homebrew...")
 	return command.RunCommand("brew", "install", "oci-cli")
-}
-
-// ensureArgoCDCLI installs the ArgoCD CLI via Homebrew if not already available.
-// See https://argo-cd.readthedocs.io/en/stable/cli_installation/
-func ensureArgoCDCLI() error {
-	if command.IsCommandAvailable("argocd") {
-		ui.Log.Info("ArgoCD CLI already installed")
-		return nil
-	}
-	ui.Log.Info("Installing ArgoCD CLI via Homebrew...")
-	return command.RunCommand("brew", "install", "argocd")
 }
 
 func getContextNames() map[string]bool {
@@ -241,79 +387,5 @@ func createOKEKubeconfig(clusterOCID, region string) error {
 		"--cluster-id", clusterOCID,
 		"--region", region,
 		"--token-version", "2.0.0",
-	)
-}
-
-func getArgoCDAdminPassword() (string, error) {
-	ui.Log.Info("Retrieving ArgoCD admin password...")
-
-	if err := command.RunCommand("kubectl", "config", "use-context", "colima-k3s-homeserver"); err != nil {
-		return "", fmt.Errorf("failed to switch to K3s context: %v", err)
-	}
-
-	output, err := command.RunCommandOutput("kubectl", "get", "secret",
-		"argocd-initial-admin-secret", "-n", argocdNS,
-		"-o", "jsonpath={.data.password}")
-	if err != nil {
-		return "", fmt.Errorf("failed to get ArgoCD admin secret: %v", err)
-	}
-
-	decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(output))
-	if err != nil {
-		return "", fmt.Errorf("failed to decode ArgoCD password: %v", err)
-	}
-
-	return string(decoded), nil
-}
-
-// argocdLogin logs in to the local K3s ArgoCD server via kubectl port-forward using admin credentials.
-// Port-forward is used instead of domain + SSO because on a fresh install the domain
-// may not yet be reachable (DNS/ingress not updated), which breaks SSO login.
-// See https://argo-cd.readthedocs.io/en/stable/user-guide/commands/argocd_login/
-func argocdLogin(password string) error {
-	ui.Log.Info("Logging in to ArgoCD via port-forward...")
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	pfCmd := exec.CommandContext(ctx, "kubectl", "port-forward", "svc/argocd-server", "-n", argocdNS, "18443:443")
-	pfCmd.Stdout = nil
-	pfCmd.Stderr = nil
-	if err := pfCmd.Start(); err != nil {
-		return fmt.Errorf("failed to start port-forward: %v", err)
-	}
-	defer func() {
-		cancel()
-		pfCmd.Wait()
-	}()
-
-	time.Sleep(3 * time.Second)
-
-	maxRetries := 12
-	for i := range maxRetries {
-		err := command.RunCommand("argocd", "login", "localhost:18443",
-			"--username", "admin",
-			"--password", password,
-			"--insecure",
-		)
-		if err == nil {
-			ui.Log.Info("ArgoCD login successful")
-			return nil
-		}
-
-		ui.Log.Info("ArgoCD not ready yet, retrying...", logger.F("attempt", i+1), logger.F("maxRetries", maxRetries))
-		time.Sleep(10 * time.Second)
-	}
-
-	return fmt.Errorf("failed to login to ArgoCD after %d retries", maxRetries)
-}
-
-// argocdAddCluster registers the given kubectl context as an external cluster in ArgoCD.
-// See https://argo-cd.readthedocs.io/en/stable/user-guide/commands/argocd_cluster_add/
-func argocdAddCluster(okeContextName string) error {
-	ui.Log.Info("Registering OKE cluster with ArgoCD...")
-	return command.RunCommand("argocd", "cluster", "add", okeContextName,
-		"--name", "oke",
-		"--yes",
 	)
 }

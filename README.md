@@ -24,6 +24,8 @@
 - 환경 레이블 (dev/staging/prod) 입력 받아 클러스터에 태깅
 - GitLab Personal Access Token 입력으로 ESO SecretStore 자동 구성
 - Gateway 연결성 검증 후 실패 시 설치 중단 (Critical)
+- OKE 외부 클러스터 등록은 declarative cluster secret 방식 사용 (ArgoCD CLI 미사용). OKE에 `argocd-manager` ServiceAccount + long-lived token Secret을 만들고, K3s ArgoCD에 cluster secret으로 apply.
+  - 참고: [ArgoCD Declarative Setup: Clusters](https://argo-cd.readthedocs.io/en/stable/operator-manual/declarative-setup/#clusters), [Bearer token 등록 사례](https://medium.com/pickme-engineering-blog/how-to-connect-an-external-kubernetes-cluster-to-argo-cd-using-bearer-token-authentication-d9ab093f081d)
 
 ### Colima + K3s를 선택한 이유
 
