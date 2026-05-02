@@ -9,7 +9,7 @@
 	<array>
 		<string>/bin/sh</string>
 		<string>-c</string>
-		<string>/usr/sbin/sysctl -w net.inet.ip.forwarding=1 &amp;&amp; /sbin/pfctl -ef /etc/pf.conf</string>
+		<string>/usr/sbin/sysctl -w net.inet.ip.forwarding=1; /sbin/pfctl -e 2&gt;/dev/null; exit 0</string>
 	</array>
 
 	<key>RunAtLoad</key>
