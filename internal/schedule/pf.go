@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	pfAnchorName = "austinhome"
-	pfAnchorPath = "/etc/pf.anchors/austinhome"
-	pfConfPath   = "/etc/pf.conf"
+	pfAnchorName    = "austinhome"
+	pfAnchorPath    = "/etc/pf.anchors/austinhome"
+	pfConfPath      = "/etc/pf.conf"
 	pfAnchorContent = `nat proto tcp from any to 192.168.0.180 port 443 -> 192.168.0.34
 rdr pass proto tcp from any to 192.168.0.34 port 443 -> 192.168.0.180
 `
@@ -38,7 +38,7 @@ func setupPF() error {
 		return err
 	}
 
-	if err := installIPForwardDaemon(); err != nil {
+	if err := installNetworkDaemon(); err != nil {
 		return err
 	}
 
@@ -111,16 +111,16 @@ func reloadPF() error {
 	return nil
 }
 
-func installIPForwardDaemon() error {
-	label := "me.haulrest.austinhome-ipforward"
+func installNetworkDaemon() error {
+	label := "me.haulrest.austinhome-network"
 	dst := "/Library/LaunchDaemons/" + label + ".plist"
 
 	tmpPath := "/tmp/" + label + ".plist"
-	if err := os.WriteFile(tmpPath, ipforwardPlist, 0644); err != nil {
-		return fmt.Errorf("failed to write ipforward plist: %v", err)
+	if err := os.WriteFile(tmpPath, networkPlist, 0644); err != nil {
+		return fmt.Errorf("failed to write network plist: %v", err)
 	}
 	if err := command.RunCommand("sudo", "cp", tmpPath, dst); err != nil {
-		return fmt.Errorf("failed to copy ipforward plist: %v", err)
+		return fmt.Errorf("failed to copy network plist: %v", err)
 	}
 	if err := command.RunCommand("sudo", "chown", "root:wheel", dst); err != nil {
 		return fmt.Errorf("failed to set ownership: %v", err)
@@ -129,24 +129,24 @@ func installIPForwardDaemon() error {
 		ui.Log.Info("  (no existing job to remove, continuing)")
 	}
 	if err := command.RunCommand("sudo", "launchctl", "bootstrap", "system", dst); err != nil {
-		return fmt.Errorf("failed to load ipforward daemon: %v", err)
+		return fmt.Errorf("failed to load network daemon: %v", err)
 	}
 	os.Remove(tmpPath)
-	ui.Log.Info("IP forwarding daemon installed")
+	ui.Log.Info("Network daemon installed (IP forwarding + pf enable)")
 	return nil
 }
 
 func removePF() error {
 	ui.Log.Info("Removing pf port forwarding...")
 
-	label := "me.haulrest.austinhome-ipforward"
+	label := "me.haulrest.austinhome-network"
 	dst := "/Library/LaunchDaemons/" + label + ".plist"
 
 	if err := command.RunCommand("sudo", "launchctl", "bootout", "system/"+label); err != nil {
-		ui.Log.Info("  (ipforward job not loaded, continuing)")
+		ui.Log.Info("  (network job not loaded, continuing)")
 	}
 	if err := command.RunCommand("sudo", "rm", "-f", dst); err != nil {
-		ui.Log.Warn("Failed to remove ipforward plist", logger.F("error", err))
+		ui.Log.Warn("Failed to remove network plist", logger.F("error", err))
 	}
 	if err := command.RunCommand("sudo", "rm", "-f", pfAnchorPath); err != nil {
 		ui.Log.Warn("Failed to remove pf anchor", logger.F("error", err))

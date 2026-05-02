@@ -17,8 +17,8 @@ var rebootPlist []byte
 //go:embed plist/me.haulrest.austinhome-reinstall.plist
 var reinstallPlist []byte
 
-//go:embed plist/me.haulrest.austinhome-ipforward.plist
-var ipforwardPlist []byte
+//go:embed plist/me.haulrest.austinhome-network.plist
+var networkPlist []byte
 
 const (
 	rebootLabel    = "me.haulrest.austinhome-reboot"
