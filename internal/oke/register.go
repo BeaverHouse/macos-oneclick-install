@@ -27,7 +27,7 @@ const (
 	argocdManagerCRBName       = "argocd-manager-role-binding"
 	argocdManagerSecretName    = "argocd-manager-token"
 	argocdClusterSecretName    = "cluster-oke"
-	tokenPopulationMaxWaitTime = 30 * time.Second
+	tokenPopulationMaxWaitTime = 2 * time.Minute
 )
 
 func PromptAndSaveOKEConfig(reader *bufio.Reader) error {
@@ -188,6 +188,9 @@ func Register() error {
 	if err := applyArgoCDClusterSecret(token, caData, server); err != nil {
 		return err
 	}
+	if err := refreshApplicationSetController(); err != nil {
+		return err
+	}
 
 	ui.Log.Info("OKE cluster registered with ArgoCD")
 	return nil
@@ -209,9 +212,15 @@ func useContext(name string) error {
 func recreateArgoCDManagerOnOKE() error {
 	ui.Log.Info("Recreating argocd-manager on OKE...")
 
-	command.RunCommand("kubectl", "delete", "clusterrolebinding", argocdManagerCRBName, "--ignore-not-found")
-	command.RunCommand("kubectl", "delete", "secret", argocdManagerSecretName, "-n", argocdManagerSANamespace, "--ignore-not-found")
-	command.RunCommand("kubectl", "delete", "serviceaccount", argocdManagerSAName, "-n", argocdManagerSANamespace, "--ignore-not-found")
+	if err := command.RunCommand("kubectl", "delete", "clusterrolebinding", argocdManagerCRBName, "--ignore-not-found"); err != nil {
+		return fmt.Errorf("failed to delete argocd-manager clusterrolebinding: %v", err)
+	}
+	if err := command.RunCommand("kubectl", "delete", "secret", argocdManagerSecretName, "-n", argocdManagerSANamespace, "--ignore-not-found"); err != nil {
+		return fmt.Errorf("failed to delete argocd-manager secret: %v", err)
+	}
+	if err := command.RunCommand("kubectl", "delete", "serviceaccount", argocdManagerSAName, "-n", argocdManagerSANamespace, "--ignore-not-found"); err != nil {
+		return fmt.Errorf("failed to delete argocd-manager serviceaccount: %v", err)
+	}
 
 	manifest := fmt.Sprintf(`---
 apiVersion: v1
@@ -339,6 +348,17 @@ stringData:
 
 	if err := kubectlApplyStdin(manifest); err != nil {
 		return fmt.Errorf("failed to apply ArgoCD cluster secret: %v", err)
+	}
+	return nil
+}
+
+func refreshApplicationSetController() error {
+	ui.Log.Info("Refreshing ArgoCD ApplicationSet controller...")
+	if err := command.RunCommand("kubectl", "rollout", "restart", "deployment", "argocd-applicationset-controller", "-n", argocdNS); err != nil {
+		return fmt.Errorf("failed to restart ApplicationSet controller: %v", err)
+	}
+	if err := command.RunCommand("kubectl", "rollout", "status", "deployment", "argocd-applicationset-controller", "-n", argocdNS, "--timeout=120s"); err != nil {
+		return fmt.Errorf("ApplicationSet controller did not become ready: %v", err)
 	}
 	return nil
 }

@@ -1,7 +1,11 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
+
+	"austinhome/internal/schedule"
+	"austinhome/internal/ui"
 
 	"github.com/spf13/cobra"
 )
@@ -10,6 +14,16 @@ var rootCmd = &cobra.Command{
 	Use:   "austinhome",
 	Short: "macOS K3s cluster automation",
 	Long:  `Automate the setup of a K3s Kubernetes cluster on macOS via Colima, with enterprise-grade infrastructure components for GitOps-based deployments.`,
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ui.Log.Info("No command provided; applying Austin Home update schedule from this binary.")
+		ui.Log.Info("This refreshes the launch binary and boot-time reinstall agent without changing the monthly reboot daemon.")
+		if err := schedule.Update(); err != nil {
+			return fmt.Errorf("update schedule failed: %w", err)
+		}
+		ui.Log.Info("Update schedule applied. The next monthly reboot will use this austinhome binary.")
+		return nil
+	},
 }
 
 func Execute() {

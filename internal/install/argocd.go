@@ -3,6 +3,8 @@ package install
 import (
 	"austinhome/internal/command"
 	"austinhome/internal/ui"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/BeaverHouse/go-common/logger"
@@ -14,6 +16,7 @@ const (
 	argoCDRepoURL     = "https://argoproj.github.io/argo-helm"
 	argoCDNamespace   = "argo-project"
 	argoCDMaxWaitTime = 3 * time.Minute
+	argoCDSyncWait    = 5 * time.Minute
 )
 
 const (
@@ -67,6 +70,9 @@ func InstallArgoCD() error {
 	if err := bootstrapArgoCD(); err != nil {
 		return err
 	}
+	if err := waitForArgoCDApplication("oss-cert-manager-home", argoCDSyncWait); err != nil {
+		return err
+	}
 
 	ui.Log.Info("Successfully installed ArgoCD")
 	return nil
@@ -112,6 +118,30 @@ func applyAppOfApps() error {
 func applyAppOfApplicationSets() error {
 	ui.Log.Info("Applying App of ApplicationSets...")
 	return command.RunCommand("kubectl", "apply", "-f", appOfApplicationSetsURL)
+}
+
+func waitForArgoCDApplication(name string, maxWait time.Duration) error {
+	ui.Log.Info("Waiting for ArgoCD application", logger.F("name", name))
+
+	deadline := time.Now().Add(maxWait)
+	for time.Now().Before(deadline) {
+		output, err := command.RunCommandOutput("kubectl", "get", "application", name,
+			"-n", argoCDNamespace,
+			"-o", `jsonpath={.status.sync.status}{"\t"}{.status.health.status}`)
+		if err == nil {
+			parts := strings.Split(strings.TrimSpace(output), "\t")
+			if len(parts) == 2 && parts[0] == "Synced" && parts[1] == "Healthy" {
+				ui.Log.Info("ArgoCD application is healthy", logger.F("name", name))
+				return nil
+			}
+			ui.Log.Info("Still waiting for ArgoCD application",
+				logger.F("name", name),
+				logger.F("status", strings.TrimSpace(output)))
+		}
+		time.Sleep(10 * time.Second)
+	}
+
+	return fmt.Errorf("timeout waiting for ArgoCD application %s to become Synced/Healthy", name)
 }
 
 func createArgoCDNamespace() error {

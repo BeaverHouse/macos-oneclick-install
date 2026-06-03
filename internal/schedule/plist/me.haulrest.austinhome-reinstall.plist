@@ -9,7 +9,7 @@
 	<array>
 		<string>/bin/bash</string>
 		<string>-c</string>
-		<string>sleep 60 &amp;&amp; /usr/local/bin/austinhome reinstall</string>
+		<string>sleep 60 &amp;&amp; __AUSTINHOME_BINARY__ reinstall</string>
 	</array>
 
 	<key>RunAtLoad</key>

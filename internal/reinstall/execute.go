@@ -38,17 +38,15 @@ func Execute() error {
 
 	ui.Log.Info("Step 3: Register OKE cluster with ArgoCD")
 	if err := oke.Register(); err != nil {
-		ui.Log.Warn("OKE registration failed (home server is still functional)", logger.F("error", err))
-	} else {
-		ui.Log.Info("OKE registration completed")
+		return fmt.Errorf("OKE registration failed: %v", err)
 	}
+	ui.Log.Info("OKE registration completed")
 
 	ui.Log.Info("Step 4: Export kubeconfig for MacBook")
 	if err := oke.ExportKubeconfig(); err != nil {
-		ui.Log.Warn("Kubeconfig export failed", logger.F("error", err))
-	} else {
-		ui.Log.Info("Kubeconfig exported")
+		return fmt.Errorf("kubeconfig export failed: %v", err)
 	}
+	ui.Log.Info("Kubeconfig exported")
 
 	ui.Log.Info("Reinstall pipeline completed!")
 	return nil

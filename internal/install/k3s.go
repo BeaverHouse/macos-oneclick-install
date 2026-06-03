@@ -5,6 +5,7 @@ import (
 	"austinhome/internal/command"
 	"austinhome/internal/ui"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -88,6 +89,47 @@ func waitForK3sReady() error {
 	}
 
 	return fmt.Errorf("timeout: K3s cluster not ready after %v", k3sReadyTimeout)
+}
+
+func normalizeLocalKubeconfig() error {
+	ui.Log.Info("Normalizing local kubeconfig server to 127.0.0.1")
+
+	clusterName, err := command.RunCommandOutput("kubectl", "config", "view", "--minify", "-o", "jsonpath={.clusters[0].name}")
+	if err != nil {
+		return fmt.Errorf("failed to read current kubeconfig cluster name: %v", err)
+	}
+	clusterName = strings.TrimSpace(clusterName)
+	if clusterName == "" {
+		return fmt.Errorf("current kubeconfig cluster name is empty")
+	}
+
+	server, err := command.RunCommandOutput("kubectl", "config", "view", "--minify", "-o", "jsonpath={.clusters[0].cluster.server}")
+	if err != nil {
+		return fmt.Errorf("failed to read current kubeconfig server: %v", err)
+	}
+	server = strings.TrimSpace(server)
+
+	parsed, err := url.Parse(server)
+	if err != nil {
+		return fmt.Errorf("failed to parse kubeconfig server %q: %v", server, err)
+	}
+	if parsed.Port() == "" {
+		return fmt.Errorf("kubeconfig server %q has no port", server)
+	}
+
+	parsed.Host = "127.0.0.1:" + parsed.Port()
+	normalizedServer := parsed.String()
+	if normalizedServer == server {
+		ui.Log.Info("Local kubeconfig server already normalized", logger.F("server", server))
+		return nil
+	}
+
+	if err := command.RunCommand("kubectl", "config", "set-cluster", clusterName, "--server", normalizedServer); err != nil {
+		return fmt.Errorf("failed to normalize kubeconfig server: %v", err)
+	}
+
+	ui.Log.Info("Local kubeconfig server normalized", logger.F("from", server), logger.F("to", normalizedServer))
+	return nil
 }
 
 func getColimaIPAddress() (string, error) {
@@ -209,6 +251,10 @@ func setupK3sCluster() error {
 
 	if err := startColimaWithK3s(); err != nil {
 		return fmt.Errorf("failed to start Colima with K3s: %v", err)
+	}
+
+	if err := normalizeLocalKubeconfig(); err != nil {
+		return fmt.Errorf("failed to normalize local kubeconfig: %v", err)
 	}
 
 	if err := waitForK3sReady(); err != nil {

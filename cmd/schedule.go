@@ -11,14 +11,14 @@ import (
 var ScheduleInstallCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install launchd plists for auto reboot and reinstall",
-	Long:  `Install binary to /usr/local/bin, set up monthly reboot daemon and boot-time reinstall agent via launchd.`,
+	Long:  `Use ~/Downloads/austinhome as SSOT, install a verified launch copy, and set up launchd tasks.`,
 	RunE:  runScheduleInstall,
 }
 
 var ScheduleTriggerCmd = &cobra.Command{
 	Use:   "trigger",
-	Short: "Run full cycle: reinstall → reboot → reinstall",
-	Long:  `Verify reinstall pipeline works, then reboot. After reboot, LaunchAgent runs reinstall again automatically.`,
+	Short: "Refresh schedule, reboot, then reinstall at login",
+	Long:  `Refresh the verified launch copy and launchd schedules, then reboot. After login, LaunchAgent runs reinstall automatically.`,
 	RunE:  runScheduleTrigger,
 }
 

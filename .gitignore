@@ -1,3 +1,5 @@
 .DS_Store
+.agent-cache
+.agent-check-result.json
 
 austinhome

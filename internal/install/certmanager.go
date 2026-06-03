@@ -3,18 +3,26 @@ package install
 import (
 	"austinhome/internal/command"
 	"austinhome/internal/ui"
-	"fmt"
 	"time"
 
 	"github.com/BeaverHouse/go-common/logger"
 )
 
 const (
-	certManagerVersion     = "1.18.2"
+	certManagerVersion     = "1.19.1"
 	certManagerNamespace   = "cert-manager"
+	certManagerChart       = "cert-manager"
+	certManagerRepoURL     = "https://charts.jetstack.io"
+	certManagerValuesURL   = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-cert-manager/values.yaml"
 	certManagerMaxWaitTime = 3 * time.Minute
+	clusterIssuerMaxWait   = 2 * time.Minute
+	gatewayCertMaxWait     = 4 * time.Minute
 	route53SecretURL       = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-cert-manager/resources/route53-secret.yaml"
+	route53SecretName      = "route53-secret"
+	route53ExternalSecret  = "route53-external-secret"
 	clusterIssuerURL       = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-cert-manager/resources/cluster-issuer.yaml"
+	clusterIssuerName      = "letsencrypt-cluster-issuer"
+	homeGatewayTLSName     = "home-gateway-tls"
 )
 
 func InstallCertManager() error {
@@ -31,8 +39,21 @@ func InstallCertManager() error {
 	if err := applyRoute53Secret(); err != nil {
 		return err
 	}
+	if err := waitForRoute53Secret(); err != nil {
+		return err
+	}
 
 	if err := applyClusterIssuer(); err != nil {
+		return err
+	}
+	if err := waitForClusterIssuerReady(); err != nil {
+		return err
+	}
+
+	if err := createHomeGateway(); err != nil {
+		return err
+	}
+	if err := waitForGatewayCertificateReady(); err != nil {
 		return err
 	}
 
@@ -41,9 +62,14 @@ func InstallCertManager() error {
 }
 
 func applyCertManagerManifests() error {
-	ui.Log.Info("Applying Cert-Manager manifests...")
-	manifestURL := fmt.Sprintf("https://github.com/cert-manager/cert-manager/releases/download/v%s/cert-manager.yaml", certManagerVersion)
-	return command.RunCommand("kubectl", "apply", "-f", manifestURL)
+	ui.Log.Info("Installing Cert-Manager chart...")
+	return command.RunCommand("helm", "upgrade", "--install", "cert-manager",
+		certManagerChart,
+		"--repo", certManagerRepoURL,
+		"--namespace", certManagerNamespace,
+		"--create-namespace",
+		"--version", "v"+certManagerVersion,
+		"--values", certManagerValuesURL)
 }
 
 func applyRoute53Secret() error {
@@ -51,9 +77,50 @@ func applyRoute53Secret() error {
 	return command.RunCommand("kubectl", "apply", "-f", route53SecretURL)
 }
 
+func waitForRoute53Secret() error {
+	ui.Log.Info("Waiting for Route53 secret...")
+	if err := command.RunCommand("kubectl", "wait",
+		"externalsecret", route53ExternalSecret,
+		"-n", certManagerNamespace,
+		"--for=condition=Ready",
+		"--timeout="+clusterIssuerMaxWait.String()); err != nil {
+		return err
+	}
+	return command.RunCommand("kubectl", "get", "secret", route53SecretName, "-n", certManagerNamespace)
+}
+
 func applyClusterIssuer() error {
 	ui.Log.Info("Applying ClusterIssuer...")
 	return command.RunCommand("kubectl", "apply", "-f", clusterIssuerURL)
+}
+
+func waitForClusterIssuerReady() error {
+	ui.Log.Info("Waiting for ClusterIssuer...")
+	return command.RunCommand("kubectl", "wait",
+		"clusterissuer", clusterIssuerName,
+		"--for=condition=Ready",
+		"--timeout="+clusterIssuerMaxWait.String())
+}
+
+func waitForGatewayCertificateReady() error {
+	ui.Log.Info("Waiting for Gateway certificate...")
+	deadline := time.Now().Add(gatewayCertMaxWait)
+	for time.Now().Before(deadline) {
+		if err := command.RunCommand("kubectl", "get", "certificate", homeGatewayTLSName, "-n", nginxGatewayNamespace); err == nil {
+			return command.RunCommand("kubectl", "wait",
+				"certificate", homeGatewayTLSName,
+				"-n", nginxGatewayNamespace,
+				"--for=condition=Ready",
+				"--timeout="+time.Until(deadline).Round(time.Second).String())
+		}
+		time.Sleep(5 * time.Second)
+	}
+
+	return command.RunCommand("kubectl", "wait",
+		"certificate", homeGatewayTLSName,
+		"-n", nginxGatewayNamespace,
+		"--for=condition=Ready",
+		"--timeout=0s")
 }
 
 func verifyCertManagerInstallation() error {

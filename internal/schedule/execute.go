@@ -3,10 +3,12 @@ package schedule
 import (
 	"austinhome/internal/command"
 	"austinhome/internal/ui"
+	"bytes"
 	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/BeaverHouse/go-common/logger"
 )
@@ -25,23 +27,14 @@ const (
 	reinstallLabel = "me.haulrest.austinhome-reinstall"
 )
 
-const binaryInstallPath = "/usr/local/bin/austinhome"
+const binaryName = "austinhome"
 
 func Execute() error {
 	ui.Log.Info("Setting up scheduled tasks...")
 
-	ui.Log.Info("Step 0: Install binary")
-	exe, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to find current binary: %v", err)
+	if err := Update(); err != nil {
+		return err
 	}
-	if err := command.RunCommand("sudo", "cp", exe, binaryInstallPath); err != nil {
-		return fmt.Errorf("failed to install binary to %s: %v", binaryInstallPath, err)
-	}
-	if err := command.RunCommand("sudo", "chmod", "755", binaryInstallPath); err != nil {
-		return fmt.Errorf("failed to set binary permissions: %v", err)
-	}
-	ui.Log.Info("Binary installed", logger.F("path", binaryInstallPath))
 
 	ui.Log.Info("Step 1: Monthly reboot schedule (requires sudo)")
 	rebootDst := filepath.Join("/Library/LaunchDaemons", rebootLabel+".plist")
@@ -64,32 +57,6 @@ func Execute() error {
 	os.Remove("/tmp/" + rebootLabel + ".plist")
 	ui.Log.Info("Monthly reboot scheduled (1st of month, 4:00 AM)")
 
-	ui.Log.Info("Step 2: Boot-time reinstall agent")
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get home directory: %v", err)
-	}
-
-	agentsDir := filepath.Join(home, "Library", "LaunchAgents")
-	if err := os.MkdirAll(agentsDir, 0755); err != nil {
-		return fmt.Errorf("failed to create LaunchAgents directory: %v", err)
-	}
-
-	reinstallDst := filepath.Join(agentsDir, reinstallLabel+".plist")
-	if err := os.WriteFile(reinstallDst, reinstallPlist, 0644); err != nil {
-		return fmt.Errorf("failed to write reinstall plist: %v", err)
-	}
-
-	uid := fmt.Sprintf("%d", os.Getuid())
-	domain := "gui/" + uid
-	if err := command.RunCommand("launchctl", "bootout", domain+"/"+reinstallLabel); err != nil {
-		ui.Log.Info("  (no existing job to remove, continuing)")
-	}
-	if err := command.RunCommand("launchctl", "bootstrap", domain, reinstallDst); err != nil {
-		return fmt.Errorf("failed to load reinstall plist: %v", err)
-	}
-	ui.Log.Info("Boot-time reinstall agent installed")
-
 	ui.Log.Info("Step 3: pf port forwarding (Mac Mini → MetalLB VIP)")
 	if err := setupPF(); err != nil {
 		return fmt.Errorf("failed to setup pf: %v", err)
@@ -104,5 +71,75 @@ func Execute() error {
 	ui.Log.Warn("Prerequisite:")
 	ui.Log.Warn("   - Auto-login must be enabled (System Settings -> Users & Groups)")
 	ui.Log.Warn("   - Router port forwarding: 443 → 192.168.0.34")
+	return nil
+}
+
+func Update() error {
+	ui.Log.Info("Step 0: Install binary")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %v", err)
+	}
+	sourcePath, launchPath := binaryPaths(home)
+	if err := installLaunchBinary(sourcePath, launchPath); err != nil {
+		return err
+	}
+	ui.Log.Info("Launch binary installed", logger.F("source", sourcePath), logger.F("path", launchPath))
+
+	ui.Log.Info("Step 1: Boot-time reinstall agent")
+	agentsDir := filepath.Join(home, "Library", "LaunchAgents")
+	if err := os.MkdirAll(agentsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create LaunchAgents directory: %v", err)
+	}
+
+	reinstallDst := filepath.Join(agentsDir, reinstallLabel+".plist")
+	reinstallContent := strings.ReplaceAll(string(reinstallPlist), "__AUSTINHOME_BINARY__", launchPath)
+	if err := os.WriteFile(reinstallDst, []byte(reinstallContent), 0644); err != nil {
+		return fmt.Errorf("failed to write reinstall plist: %v", err)
+	}
+
+	uid := fmt.Sprintf("%d", os.Getuid())
+	domain := "gui/" + uid
+	if err := command.RunCommand("launchctl", "bootout", domain+"/"+reinstallLabel); err != nil {
+		ui.Log.Info("  (no existing job to remove, continuing)")
+	}
+	ui.Log.Info("Boot-time reinstall agent installed for next login")
+	return nil
+}
+
+func binaryPaths(home string) (sourcePath, launchPath string) {
+	return filepath.Join(home, "Downloads", binaryName), filepath.Join(home, ".local", "bin", binaryName)
+}
+
+func installLaunchBinary(sourcePath, launchPath string) error {
+	sourceBytes, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to read Downloads SSOT binary %s: %v", sourcePath, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(launchPath), 0755); err != nil {
+		return fmt.Errorf("failed to create launch binary directory: %v", err)
+	}
+
+	tmpPath := launchPath + ".tmp"
+	if err := os.WriteFile(tmpPath, sourceBytes, 0755); err != nil {
+		return fmt.Errorf("failed to write temp launch binary: %v", err)
+	}
+	defer os.Remove(tmpPath)
+	if err := os.Chmod(tmpPath, 0755); err != nil {
+		return fmt.Errorf("failed to chmod temp launch binary: %v", err)
+	}
+
+	if err := os.Rename(tmpPath, launchPath); err != nil {
+		return fmt.Errorf("failed to install launch binary atomically: %v", err)
+	}
+
+	launchBytes, err := os.ReadFile(launchPath)
+	if err != nil {
+		return fmt.Errorf("failed to verify installed launch binary: %v", err)
+	}
+	if !bytes.Equal(sourceBytes, launchBytes) {
+		return fmt.Errorf("launch binary mismatch after install")
+	}
+
 	return nil
 }

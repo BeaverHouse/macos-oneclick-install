@@ -42,6 +42,9 @@ K3s는 MicroK8s와 함께 간편하게 사용 가능하면서도, Production 환
 ## 사용 가능 커맨드
 
 ```bash
+# 업데이트 적용 (명령 없이 실행하면 launch binary와 boot-time reinstall agent 갱신)
+austinhome
+
 # 전체 설치 (K3s + 인프라 + OKE 등록 + kubeconfig export)
 austinhome install
 
