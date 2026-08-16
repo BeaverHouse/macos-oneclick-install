@@ -105,7 +105,10 @@ ACME account Secret은 cert-manager가 런타임에 생성하며 Argo CD가 직�
 ### 사전 조건
 
 - macOS 자동 로그인 활성화 (System Settings → Users & Groups)
+- 정전 후 자동 재시작 활성화 (System Settings → Energy)
 - 최초 1회 `austinhome install` 실행 (OCI 계정 설정, GitLab PAT, OKE cluster 정보가 `~/.austinhome/`에 저장됨)
+
+그 외에도 [화면 공유](https://support.apple.com/ko-kr/guide/mac-help/mh14066/mac)를 활성화하고, 서버 컴퓨터의 IP를 고정해 두면 유지보수가 편해집니다.
 
 ### 저장되는 설정 (`~/.austinhome/`)
 
