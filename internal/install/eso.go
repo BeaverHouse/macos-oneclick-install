@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	esoVersion     = "0.20.2"
+	esoVersion     = "2.15.0"
 	esoRepoName    = "external-secrets"
 	esoRepoURL     = "https://charts.external-secrets.io"
 	esoNamespace   = "external-secrets"

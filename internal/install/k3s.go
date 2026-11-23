@@ -3,12 +3,14 @@ package install
 import (
 	"austinhome/internal/colima"
 	"austinhome/internal/command"
+	"austinhome/internal/constants"
 	"austinhome/internal/ui"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/BeaverHouse/go-common/errorhandle"
 	"github.com/BeaverHouse/go-common/logger"
 )
 
@@ -21,7 +23,7 @@ const (
 
 func validatePrerequisites() error {
 	if !command.IsCommandAvailable("brew") {
-		return fmt.Errorf("err: Homebrew is required but not installed. Visit https://brew.sh/ to install it")
+		return errorhandle.ErrInternalMsg("Homebrew is required but not installed. Visit https://brew.sh/ to install it")
 	}
 	return nil
 }
@@ -30,7 +32,7 @@ func installColimaIfNeeded() error {
 	if !command.IsCommandAvailable("colima") {
 		ui.Log.Info("Installing Colima...")
 		if err := command.RunCommand("brew", "install", "colima"); err != nil {
-			return fmt.Errorf("failed to install Colima: %v", err)
+			return constants.ErrOperationFailed("install Colima", err)
 		}
 	} else {
 		ui.Log.Info("Colima is already installed")
@@ -67,7 +69,7 @@ func startColimaWithK3s() error {
 		"--dns", "8.8.4.4")
 
 	if err != nil {
-		return fmt.Errorf("failed to start Colima with K3s: %v", err)
+		return constants.ErrOperationFailed("start Colima with K3s", err)
 	}
 
 	ui.Log.Info("Colima with K3s started successfully")
@@ -84,11 +86,11 @@ func waitForK3sReady() error {
 			return nil
 		}
 
-		ui.Log.Info("Still waiting...", logger.F("elapsed", time.Since(startTime).Truncate(time.Second)))
+		ui.Log.Info("Still waiting...", logger.Field{Key: "elapsed", Value: time.Since(startTime).Truncate(time.Second)})
 		time.Sleep(10 * time.Second)
 	}
 
-	return fmt.Errorf("timeout: K3s cluster not ready after %v", k3sReadyTimeout)
+	return constants.ErrTimeout("K3s cluster readiness", k3sReadyTimeout)
 }
 
 func normalizeLocalKubeconfig() error {
@@ -96,39 +98,39 @@ func normalizeLocalKubeconfig() error {
 
 	clusterName, err := command.RunCommandOutput("kubectl", "config", "view", "--minify", "-o", "jsonpath={.clusters[0].name}")
 	if err != nil {
-		return fmt.Errorf("failed to read current kubeconfig cluster name: %v", err)
+		return constants.ErrOperationFailed("read current kubeconfig cluster name", err)
 	}
 	clusterName = strings.TrimSpace(clusterName)
 	if clusterName == "" {
-		return fmt.Errorf("current kubeconfig cluster name is empty")
+		return errorhandle.ErrInternalMsg("current kubeconfig cluster name is empty")
 	}
 
 	server, err := command.RunCommandOutput("kubectl", "config", "view", "--minify", "-o", "jsonpath={.clusters[0].cluster.server}")
 	if err != nil {
-		return fmt.Errorf("failed to read current kubeconfig server: %v", err)
+		return constants.ErrOperationFailed("read current kubeconfig server", err)
 	}
 	server = strings.TrimSpace(server)
 
 	parsed, err := url.Parse(server)
 	if err != nil {
-		return fmt.Errorf("failed to parse kubeconfig server %q: %v", server, err)
+		return constants.ErrOperationFailed(fmt.Sprintf("parse kubeconfig server %q", server), err)
 	}
 	if parsed.Port() == "" {
-		return fmt.Errorf("kubeconfig server %q has no port", server)
+		return errorhandle.ErrValidationFailed(fmt.Sprintf("kubeconfig server %q has no port", server))
 	}
 
 	parsed.Host = "127.0.0.1:" + parsed.Port()
 	normalizedServer := parsed.String()
 	if normalizedServer == server {
-		ui.Log.Info("Local kubeconfig server already normalized", logger.F("server", server))
+		ui.Log.Info("Local kubeconfig server already normalized", logger.Field{Key: "server", Value: server})
 		return nil
 	}
 
 	if err := command.RunCommand("kubectl", "config", "set-cluster", clusterName, "--server", normalizedServer); err != nil {
-		return fmt.Errorf("failed to normalize kubeconfig server: %v", err)
+		return constants.ErrOperationFailed("normalize kubeconfig server", err)
 	}
 
-	ui.Log.Info("Local kubeconfig server normalized", logger.F("from", server), logger.F("to", normalizedServer))
+	ui.Log.Info("Local kubeconfig server normalized", logger.Field{Key: "from", Value: server}, logger.Field{Key: "to", Value: normalizedServer})
 	return nil
 }
 
@@ -137,30 +139,30 @@ func getColimaIPAddress() (string, error) {
 
 	output, err := command.RunCommandOutput("colima", "list", "--format", "{{.IPAddress}}")
 	if err != nil {
-		return "", fmt.Errorf("failed to get Colima IP: %v", err)
+		return "", constants.ErrOperationFailed("get Colima IP", err)
 	}
 
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line != "" && line != "IPAddress" {
-			ui.Log.Info("Found Colima IP", logger.F("ip", line))
+			ui.Log.Info("Found Colima IP", logger.Field{Key: "ip", Value: line})
 			return line, nil
 		}
 	}
 
-	return "", fmt.Errorf("could not find Colima VM IP address")
+	return "", errorhandle.ErrNotFound("Colima VM IP address")
 }
 
 func disableTraefik() error {
 	ui.Log.Info("Disabling default Traefik ingress controller...")
 
 	if err := command.RunCommand("kubectl", "delete", "namespace", "traefik-system", "--ignore-not-found"); err != nil {
-		ui.Log.Info("Traefik namespace deletion", logger.F("result", err))
+		ui.Log.Info("Traefik namespace deletion", logger.Field{Key: "result", Value: err})
 	}
 
 	if err := command.RunCommand("kubectl", "delete", "ingressclass", "traefik", "--ignore-not-found"); err != nil {
-		ui.Log.Info("Traefik ingress class deletion", logger.F("result", err))
+		ui.Log.Info("Traefik ingress class deletion", logger.Field{Key: "result", Value: err})
 	}
 
 	ui.Log.Info("Traefik disabled successfully")
@@ -173,7 +175,7 @@ func enableEssentialAddons() error {
 	ui.Log.Info("Installing metrics-server...")
 	if err := command.RunCommand("kubectl", "apply", "-f",
 		"https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml"); err != nil {
-		ui.Log.Warn("Failed to install metrics-server", logger.F("error", err))
+		ui.Log.Warn("Failed to install metrics-server", logger.Field{Key: "error", Value: err})
 	} else {
 		ui.Log.Info("Metrics-server installed")
 	}
@@ -186,7 +188,7 @@ func setNodeLabel(envLabel string) error {
 
 	nodeOutput, err := command.RunCommandOutput("kubectl", "get", "nodes", "-o", "jsonpath={.items[0].metadata.name}")
 	if err != nil {
-		return fmt.Errorf("failed to get node name: %v", err)
+		return constants.ErrOperationFailed("get node name", err)
 	}
 
 	nodeName := strings.TrimSpace(nodeOutput)
@@ -199,11 +201,11 @@ func testKubectlAccess() error {
 	ui.Log.Info("Testing kubectl access to K3s cluster...")
 
 	if err := command.RunCommand("kubectl", "version", "--client"); err != nil {
-		return fmt.Errorf("kubectl not available: %v", err)
+		return constants.ErrOperationFailed("kubectl availability check", err)
 	}
 
 	if err := command.RunCommand("kubectl", "cluster-info"); err != nil {
-		return fmt.Errorf("kubectl cannot connect to K3s cluster: %v", err)
+		return constants.ErrOperationFailed("kubectl connection to K3s cluster", err)
 	}
 
 	return nil
@@ -219,24 +221,24 @@ func verifyInstallation() error {
 
 	ui.Log.Info("K3s cluster health status:")
 	if err := command.RunCommand("kubectl", "get", "pods", "--all-namespaces"); err != nil {
-		ui.Log.Warn("Health check failed", logger.F("error", err))
+		ui.Log.Warn("Health check failed", logger.Field{Key: "error", Value: err})
 	}
 
 	ui.Log.Info("Testing kubectl access...")
 	if err := testKubectlAccess(); err != nil {
-		ui.Log.Warn("kubectl access test failed", logger.F("error", err))
+		ui.Log.Warn("kubectl access test failed", logger.Field{Key: "error", Value: err})
 		ui.Log.Info("Tip: Check if ~/.kube/config exists and contains valid K3s cluster configuration")
 	} else {
 		ui.Log.Info("kubectl access is working correctly!")
 	}
 
 	if ip, err := getColimaIPAddress(); err == nil {
-		ui.Log.Info("Colima VM IP", logger.F("ip", ip))
+		ui.Log.Info("Colima VM IP", logger.Field{Key: "ip", Value: ip})
 		ui.Log.Info("This IP will be used for LoadBalancer services")
 	}
 
 	ui.Log.Info("Colima K3s installation and setup completed successfully!")
-	ui.Log.Info("Colima instance name", logger.F("name", colima.InstanceName))
+	ui.Log.Info("Colima instance name", logger.Field{Key: "name", Value: colima.InstanceName})
 	ui.Log.Info("Access your cluster with: kubectl get nodes")
 
 	return nil
@@ -246,19 +248,19 @@ func setupK3sCluster() error {
 	ui.Log.Info("Setting up Colima K3s cluster...")
 
 	if err := stopExistingColima(); err != nil {
-		return fmt.Errorf("failed to stop existing Colima: %v", err)
+		return constants.ErrOperationFailed("stop existing Colima", err)
 	}
 
 	if err := startColimaWithK3s(); err != nil {
-		return fmt.Errorf("failed to start Colima with K3s: %v", err)
+		return constants.ErrOperationFailed("start Colima with K3s", err)
 	}
 
 	if err := normalizeLocalKubeconfig(); err != nil {
-		return fmt.Errorf("failed to normalize local kubeconfig: %v", err)
+		return constants.ErrOperationFailed("normalize local kubeconfig", err)
 	}
 
 	if err := waitForK3sReady(); err != nil {
-		return fmt.Errorf("K3s cluster not ready: %v", err)
+		return constants.ErrOperationFailed("K3s cluster readiness check", err)
 	}
 
 	return nil

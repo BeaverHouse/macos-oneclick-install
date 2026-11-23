@@ -1,19 +1,20 @@
 package command
 
 import (
+	"austinhome/internal/constants"
 	"austinhome/internal/ui"
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
+	"github.com/BeaverHouse/go-common/env"
 	"github.com/BeaverHouse/go-common/logger"
 )
 
 func init() {
-	path := os.Getenv("PATH")
+	path := env.GetEnv("PATH", "")
 	for _, dir := range []string{"/opt/homebrew/bin", "/usr/local/bin"} {
 		if !strings.Contains(path, dir) {
 			path = dir + ":" + path
@@ -54,7 +55,7 @@ func RunCommand(name string, args ...string) error {
 
 	setupCommandEnvironment(cmd)
 
-	ui.Log.Debug("Running command", logger.F("command", name), logger.F("args", strings.Join(args, " ")))
+	ui.Log.Debug("Running command", logger.Field{Key: "command", Value: name}, logger.Field{Key: "args", Value: strings.Join(args, " ")})
 	return cmd.Run()
 }
 
@@ -63,7 +64,7 @@ func RunCommandOutput(name string, args ...string) (string, error) {
 
 	setupCommandEnvironment(cmd)
 
-	ui.Log.Debug("Running command", logger.F("command", name), logger.F("args", strings.Join(args, " ")))
+	ui.Log.Debug("Running command", logger.Field{Key: "command", Value: name}, logger.Field{Key: "args", Value: strings.Join(args, " ")})
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -81,7 +82,7 @@ func RunCommandInteractive(name string, args ...string) error {
 
 	setupCommandEnvironment(cmd)
 
-	ui.Log.Debug("Running command", logger.F("command", name), logger.F("args", strings.Join(args, " ")))
+	ui.Log.Debug("Running command", logger.Field{Key: "command", Value: name}, logger.Field{Key: "args", Value: strings.Join(args, " ")})
 	return cmd.Run()
 }
 
@@ -100,11 +101,11 @@ func RunCommandWithTimeout(timeout time.Duration, name string, args ...string) e
 
 	setupCommandEnvironment(cmd)
 
-	ui.Log.Debug("Running command", logger.F("command", name), logger.F("args", strings.Join(args, " ")), logger.F("timeout", timeout))
+	ui.Log.Debug("Running command", logger.Field{Key: "command", Value: name}, logger.Field{Key: "args", Value: strings.Join(args, " ")}, logger.Field{Key: "timeout", Value: timeout})
 	err := cmd.Run()
 
 	if ctx.Err() == context.DeadlineExceeded {
-		return fmt.Errorf("command timed out after %v", timeout)
+		return constants.ErrTimeout("command", timeout)
 	}
 
 	return err
@@ -116,7 +117,7 @@ func WaitForPodsReady(namespace, selector string, maxWaitTime time.Duration) err
 		selectorText = "all pods"
 	}
 
-	ui.Log.Info("Waiting for pods to be ready", logger.F("namespace", namespace), logger.F("selector", selectorText), logger.F("maxWait", maxWaitTime))
+	ui.Log.Info("Waiting for pods to be ready", logger.Field{Key: "namespace", Value: namespace}, logger.Field{Key: "selector", Value: selectorText}, logger.Field{Key: "maxWait", Value: maxWaitTime})
 
 	checkInterval := 10 * time.Second
 	startTime := time.Now()
@@ -136,9 +137,9 @@ func WaitForPodsReady(namespace, selector string, maxWaitTime time.Duration) err
 			return nil
 		}
 
-		ui.Log.Info("Still waiting...", logger.F("elapsed", time.Since(startTime).Truncate(time.Second)))
+		ui.Log.Info("Still waiting...", logger.Field{Key: "elapsed", Value: time.Since(startTime).Truncate(time.Second)})
 		time.Sleep(checkInterval)
 	}
 
-	return fmt.Errorf("timeout: pods not ready after %v", maxWaitTime)
+	return constants.ErrTimeout("pods readiness", maxWaitTime)
 }

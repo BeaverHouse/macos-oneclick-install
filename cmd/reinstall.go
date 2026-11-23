@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"austinhome/internal/constants"
 	"austinhome/internal/reinstall"
 	"austinhome/internal/ui"
-	"fmt"
 
 	"github.com/spf13/cobra"
 )
@@ -19,7 +19,7 @@ func runReinstall(cmd *cobra.Command, args []string) error {
 	ui.Log.Info("Starting reinstall...")
 
 	if err := reinstall.Execute(); err != nil {
-		return fmt.Errorf("reinstall failed: %w", err)
+		return constants.ErrOperationFailed("reinstall", err)
 	}
 
 	ui.Log.Info("Reinstall completed successfully!")

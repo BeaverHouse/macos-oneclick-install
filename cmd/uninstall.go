@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"austinhome/internal/constants"
 	"austinhome/internal/ui"
 	"austinhome/internal/uninstall"
-	"fmt"
 
 	"github.com/spf13/cobra"
 )
@@ -19,7 +19,7 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	ui.Log.Info("Starting uninstallation...")
 
 	if err := uninstall.Execute(); err != nil {
-		return fmt.Errorf("uninstallation failed: %w", err)
+		return constants.ErrOperationFailed("uninstallation", err)
 	}
 
 	ui.Log.Info("Uninstallation completed successfully!")

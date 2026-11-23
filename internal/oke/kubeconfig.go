@@ -2,6 +2,7 @@ package oke
 
 import (
 	"austinhome/internal/command"
+	"austinhome/internal/constants"
 	"austinhome/internal/ui"
 	"fmt"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/BeaverHouse/go-common/errorhandle"
 	"github.com/BeaverHouse/go-common/logger"
 )
 
@@ -23,7 +25,7 @@ func ExportKubeconfig() error {
 	ui.Log.Info("Step: Export kubeconfig for MacBook")
 
 	if err := os.MkdirAll(exportDirPath, 0755); err != nil {
-		return fmt.Errorf("failed to create export directory: %v", err)
+		return constants.ErrOperationFailed("create export directory", err)
 	}
 
 	exportPath := filepath.Join(exportDirPath, exportFileName)
@@ -32,17 +34,17 @@ func ExportKubeconfig() error {
 		return err
 	}
 	if err := os.WriteFile(exportPath, []byte(kubeconfig), 0600); err != nil {
-		return fmt.Errorf("failed to write kubeconfig: %v", err)
+		return constants.ErrOperationFailed("write kubeconfig", err)
 	}
 	externalServer := "https://" + macMiniLANIP + ":" + port
 	if err := command.RunCommand("kubectl", "--kubeconfig", exportPath, "config", "set-cluster", clusterName, "--server", externalServer, "--tls-server-name", "127.0.0.1"); err != nil {
-		return fmt.Errorf("failed to update exported K3s cluster entry: %v", err)
+		return constants.ErrOperationFailed("update exported K3s cluster entry", err)
 	}
 
-	ui.Log.Info("Kubeconfig exported", logger.F("path", exportPath))
-	ui.Log.Info("K3s server address exported", logger.F("host", macMiniLANIP))
+	ui.Log.Info("Kubeconfig exported", logger.Field{Key: "path", Value: exportPath})
+	ui.Log.Info("K3s server address exported", logger.Field{Key: "host", Value: macMiniLANIP})
 	if err := command.RunCommand("open", "-R", exportPath); err != nil {
-		ui.Log.Warn("Failed to reveal kubeconfig in Finder", logger.F("error", err))
+		ui.Log.Warn("Failed to reveal kubeconfig in Finder", logger.Field{Key: "error", Value: err})
 	}
 	return nil
 }
@@ -50,15 +52,15 @@ func ExportKubeconfig() error {
 func buildExportKubeconfig() (kubeconfig, clusterName, port string, err error) {
 	clusterName, err = kubeconfigJSONPath(fmt.Sprintf(`{.contexts[?(@.name==%q)].context.cluster}`, k3sContextName))
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to read K3s cluster name: %v", err)
+		return "", "", "", constants.ErrOperationFailed("read K3s cluster name", err)
 	}
 	if clusterName == "" {
-		return "", "", "", fmt.Errorf("K3s context %q not found in kubeconfig", k3sContextName)
+		return "", "", "", errorhandle.ErrNotFound(fmt.Sprintf("K3s context %q in kubeconfig", k3sContextName))
 	}
 
 	localServer, err := kubeconfigJSONPath(fmt.Sprintf(`{.clusters[?(@.name==%q)].cluster.server}`, clusterName))
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to read K3s server: %v", err)
+		return "", "", "", constants.ErrOperationFailed("read K3s server", err)
 	}
 	port, err = serverPort(localServer)
 	if err != nil {
@@ -67,7 +69,7 @@ func buildExportKubeconfig() (kubeconfig, clusterName, port string, err error) {
 
 	rawConfig, err := command.RunCommandOutput("kubectl", "config", "view", "--raw", "--flatten")
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to flatten kubeconfig: %v", err)
+		return "", "", "", constants.ErrOperationFailed("flatten kubeconfig", err)
 	}
 	return rawConfig, clusterName, port, nil
 }
@@ -80,10 +82,10 @@ func kubeconfigJSONPath(path string) (string, error) {
 func serverPort(server string) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(server))
 	if err != nil {
-		return "", fmt.Errorf("failed to parse kubeconfig server %q: %v", server, err)
+		return "", constants.ErrOperationFailed(fmt.Sprintf("parse kubeconfig server %q", server), err)
 	}
 	if parsed.Port() == "" {
-		return "", fmt.Errorf("kubeconfig server %q has no port", server)
+		return "", errorhandle.ErrValidationFailed(fmt.Sprintf("kubeconfig server %q has no port", server))
 	}
 	return parsed.Port(), nil
 }

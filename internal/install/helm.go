@@ -2,8 +2,8 @@ package install
 
 import (
 	"austinhome/internal/command"
+	"austinhome/internal/constants"
 	"austinhome/internal/ui"
-	"fmt"
 )
 
 func InstallHelm() error {
@@ -12,7 +12,7 @@ func InstallHelm() error {
 	if !command.IsCommandAvailable("helm") {
 		ui.Log.Info("Installing Helm via Homebrew...")
 		if err := command.RunCommand("brew", "install", "helm"); err != nil {
-			return fmt.Errorf("failed to install Helm: %v", err)
+			return constants.ErrOperationFailed("install Helm", err)
 		}
 	} else {
 		ui.Log.Info("Helm is already installed")
@@ -25,7 +25,7 @@ func setupHelmForK3s() error {
 	ui.Log.Info("Setting up Helm for K3s...")
 
 	if err := command.RunCommand("helm", "list", "--all-namespaces"); err != nil {
-		return fmt.Errorf("failed to connect Helm to K3s cluster: %v", err)
+		return constants.ErrOperationFailed("connect Helm to K3s cluster", err)
 	}
 
 	ui.Log.Info("Helm configured to use K3s cluster")

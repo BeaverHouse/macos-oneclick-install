@@ -48,7 +48,7 @@ func verifyESOSecretStore() error {
 
 	ui.Log.Info("ClusterSecretStore status:")
 	if err := command.RunCommand("kubectl", "get", "clustersecretstore"); err != nil {
-		ui.Log.Warn("Failed to get ClusterSecretStore", logger.F("error", err))
+		ui.Log.Warn("Failed to get ClusterSecretStore", logger.Field{Key: "error", Value: err})
 	}
 
 	return nil

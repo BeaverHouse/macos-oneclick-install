@@ -70,7 +70,7 @@ func verifyMetalLBInstallation() error {
 
 	ui.Log.Info("MetalLB configuration:")
 	if err := command.RunCommand("kubectl", "get", "ipaddresspool", "-n", metalLBNamespace); err != nil {
-		ui.Log.Warn("Failed to get IP address pool", logger.F("error", err))
+		ui.Log.Warn("Failed to get IP address pool", logger.Field{Key: "error", Value: err})
 	}
 
 	return nil

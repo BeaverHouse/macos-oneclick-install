@@ -12,7 +12,7 @@ func Execute() error {
 	colima.Delete()
 
 	if err := UninstallHelm(); err != nil {
-		ui.Log.Warn("Helm uninstall failed", logger.F("error", err))
+		ui.Log.Warn("Helm uninstall failed", logger.Field{Key: "error", Value: err})
 	}
 
 	if err := cleanupDirectories(); err != nil {

@@ -2,8 +2,8 @@ package uninstall
 
 import (
 	"austinhome/internal/command"
+	"austinhome/internal/constants"
 	"austinhome/internal/ui"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -15,7 +15,7 @@ func cleanupDirectories() error {
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %v", err)
+		return constants.ErrOperationFailed("get home directory", err)
 	}
 
 	directoriesToRemove := []string{
@@ -32,9 +32,9 @@ func cleanupDirectories() error {
 
 func removeDirectoryIfExists(dir string) {
 	if _, err := os.Stat(dir); err == nil {
-		ui.Log.Info("Removing directory", logger.F("dir", dir))
+		ui.Log.Info("Removing directory", logger.Field{Key: "dir", Value: dir})
 		if err := os.RemoveAll(dir); err != nil {
-			ui.Log.Warn("Failed to remove directory", logger.F("dir", dir), logger.F("error", err))
+			ui.Log.Warn("Failed to remove directory", logger.Field{Key: "dir", Value: dir}, logger.Field{Key: "error", Value: err})
 		}
 	}
 }
@@ -53,7 +53,7 @@ func cleanupKubectlConfig() {
 	ui.Log.Info("Cleaning kubectl configuration...")
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		ui.Log.Warn("Failed to get home directory", logger.F("error", err))
+		ui.Log.Warn("Failed to get home directory", logger.Field{Key: "error", Value: err})
 		return
 	}
 

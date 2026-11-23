@@ -2,12 +2,14 @@ package install
 
 import (
 	"austinhome/internal/command"
+	"austinhome/internal/constants"
 	"austinhome/internal/ui"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/BeaverHouse/go-common/errorhandle"
 	"github.com/BeaverHouse/go-common/logger"
 )
 
@@ -49,7 +51,7 @@ func createHomeGateway() error {
 }
 
 func installGatewayAPICRDs() error {
-	ui.Log.Info("Installing Gateway API CRDs", logger.F("version", gatewayAPIVersion))
+	ui.Log.Info("Installing Gateway API CRDs", logger.Field{Key: "version", Value: gatewayAPIVersion})
 	return command.RunCommand("kubectl", "apply", "-f", gatewayAPICRDURL())
 }
 
@@ -73,12 +75,12 @@ func verifyNginxGatewayInstallation() error {
 
 	ui.Log.Info("NGINX Gateway service status:")
 	if err := command.RunCommand("kubectl", "get", "service", "-n", nginxGatewayNamespace); err != nil {
-		ui.Log.Warn("Failed to get gateway service", logger.F("error", err))
+		ui.Log.Warn("Failed to get gateway service", logger.Field{Key: "error", Value: err})
 	}
 
 	ui.Log.Info("Gateway classes:")
 	if err := command.RunCommand("kubectl", "get", "gatewayclass"); err != nil {
-		ui.Log.Warn("Failed to get gateway classes", logger.F("error", err))
+		ui.Log.Warn("Failed to get gateway classes", logger.Field{Key: "error", Value: err})
 	}
 
 	return nil
@@ -94,24 +96,24 @@ func getGatewayIP() (string, error) {
 	for time.Since(startTime) < maxWaitTime {
 		output, err := command.RunCommandOutput("kubectl", "get", "service", "home-gateway-nginx", "-n", nginxGatewayNamespace, "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
 		if err != nil {
-			return "", fmt.Errorf("failed to get gateway service info: %v", err)
+			return "", constants.ErrOperationFailed("get gateway service info", err)
 		}
 
 		ip := strings.TrimSpace(output)
 		if ip != "" && ip != "<nil>" {
-			ui.Log.Info("Found Gateway IP", logger.F("ip", ip))
+			ui.Log.Info("Found Gateway IP", logger.Field{Key: "ip", Value: ip})
 			return ip, nil
 		}
 
-		ui.Log.Info("Waiting for LoadBalancer IP...", logger.F("elapsed", time.Since(startTime).Truncate(time.Second)))
+		ui.Log.Info("Waiting for LoadBalancer IP...", logger.Field{Key: "elapsed", Value: time.Since(startTime).Truncate(time.Second)})
 		time.Sleep(checkInterval)
 	}
 
-	return "", fmt.Errorf("timeout: LoadBalancer IP not assigned after %v", maxWaitTime)
+	return "", constants.ErrTimeout("LoadBalancer IP assignment", maxWaitTime)
 }
 
 func testGatewayConnectivity(ip string) error {
-	ui.Log.Info("Testing Gateway connectivity", logger.F("ip", ip))
+	ui.Log.Info("Testing Gateway connectivity", logger.Field{Key: "ip", Value: ip})
 
 	client := &http.Client{
 		Timeout: 10 * time.Second,
@@ -122,20 +124,20 @@ func testGatewayConnectivity(ip string) error {
 	retryInterval := 10 * time.Second
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		ui.Log.Info("Making HTTP request", logger.F("url", testURL), logger.F("attempt", attempt), logger.F("maxRetries", maxRetries))
+		ui.Log.Info("Making HTTP request", logger.Field{Key: "url", Value: testURL}, logger.Field{Key: "attempt", Value: attempt}, logger.Field{Key: "maxRetries", Value: maxRetries})
 
 		resp, err := client.Get(testURL)
 		if err != nil {
 			if attempt < maxRetries {
-				ui.Log.Info("Gateway not ready yet, retrying...", logger.F("retryInterval", retryInterval))
+				ui.Log.Info("Gateway not ready yet, retrying...", logger.Field{Key: "retryInterval", Value: retryInterval})
 				time.Sleep(retryInterval)
 				continue
 			}
-			return fmt.Errorf("failed to connect to gateway at %s after %d attempts: %v", ip, maxRetries, err)
+			return constants.ErrOperationFailed(fmt.Sprintf("connect to gateway at %s after %d attempts", ip, maxRetries), err)
 		}
 		defer resp.Body.Close()
 
-		ui.Log.Info("HTTP Response", logger.F("status", resp.Status), logger.F("statusCode", resp.StatusCode))
+		ui.Log.Info("HTTP Response", logger.Field{Key: "status", Value: resp.Status}, logger.Field{Key: "statusCode", Value: resp.StatusCode})
 
 		if resp.StatusCode == 404 {
 			ui.Log.Info("Got 404 Not Found - NGINX Gateway Fabric is working!")
@@ -148,10 +150,10 @@ func testGatewayConnectivity(ip string) error {
 			return nil
 		}
 
-		return fmt.Errorf("unexpected response from gateway - expected nginx or 404, got: %s", resp.Status)
+		return errorhandle.ErrInternalMsg("unexpected response from gateway - expected nginx or 404, got: " + resp.Status)
 	}
 
-	return fmt.Errorf("failed to connect to gateway at %s after %d attempts", ip, maxRetries)
+	return errorhandle.ErrInternalMsg(fmt.Sprintf("failed to connect to gateway at %s after %d attempts", ip, maxRetries))
 }
 
 func testGatewayFromHost(ip string) error {
@@ -160,33 +162,33 @@ func testGatewayFromHost(ip string) error {
 	curlCmd := fmt.Sprintf("curl -s -o /dev/null -w '%%{http_code}' --connect-timeout 10 http://%s", ip)
 	output, err := command.RunCommandOutput("bash", "-c", curlCmd)
 	if err != nil {
-		return fmt.Errorf("failed to test connectivity from host: %v", err)
+		return constants.ErrOperationFailed("test connectivity from host", err)
 	}
 
 	statusCode := strings.TrimSpace(output)
-	ui.Log.Info("Host curl response", logger.F("statusCode", statusCode))
+	ui.Log.Info("Host curl response", logger.Field{Key: "statusCode", Value: statusCode})
 
 	if statusCode == "200" || statusCode == "404" {
 		ui.Log.Info("Host can reach Gateway successfully!")
 		return nil
 	}
 
-	return fmt.Errorf("unexpected HTTP status from host: %s", statusCode)
+	return errorhandle.ErrInternalMsg("unexpected HTTP status from host: " + statusCode)
 }
 
 func performGatewayNetworkAnalysis(ip string) error {
 	ui.Log.Info("Performing network analysis...")
 
-	ui.Log.Info("Testing ping", logger.F("ip", ip))
+	ui.Log.Info("Testing ping", logger.Field{Key: "ip", Value: ip})
 	if err := command.RunCommand("ping", "-c", "3", ip); err != nil {
-		ui.Log.Error("Ping failed", logger.F("error", err))
+		ui.Log.Error("Ping failed", logger.Field{Key: "error", Value: err})
 	} else {
 		ui.Log.Info("Ping successful")
 	}
 
-	ui.Log.Info("Testing port 80 connectivity", logger.F("ip", ip))
+	ui.Log.Info("Testing port 80 connectivity", logger.Field{Key: "ip", Value: ip})
 	if err := command.RunCommand("nc", "-z", "-w", "5", ip, "80"); err != nil {
-		ui.Log.Error("Port 80 not accessible", logger.F("error", err))
+		ui.Log.Error("Port 80 not accessible", logger.Field{Key: "error", Value: err})
 	} else {
 		ui.Log.Info("Port 80 is accessible")
 	}
@@ -200,7 +202,7 @@ func performGatewayNetworkAnalysis(ip string) error {
 	ui.Log.Info("Recent gateway controller logs:")
 	command.RunCommand("kubectl", "logs", "-n", nginxGatewayNamespace, "-l", "app.kubernetes.io/name=nginx-gateway-fabric", "--tail=20")
 
-	return fmt.Errorf("network analysis completed - please check the output above for connectivity issues")
+	return errorhandle.ErrInternalMsg("network analysis completed - please check the output above for connectivity issues")
 }
 
 func VerifyGatewayConnectivity() error {
@@ -209,7 +211,7 @@ func VerifyGatewayConnectivity() error {
 	maxWaitTime := 3 * time.Minute
 	err := command.WaitForPodsReady(nginxGatewayNamespace, "app.kubernetes.io/name=nginx-gateway-fabric", maxWaitTime)
 	if err != nil {
-		ui.Log.Warn("Proceeding anyway", logger.F("error", err))
+		ui.Log.Warn("Proceeding anyway", logger.Field{Key: "error", Value: err})
 	}
 
 	ip, err := getGatewayIP()
@@ -218,12 +220,12 @@ func VerifyGatewayConnectivity() error {
 	}
 
 	if err := testGatewayConnectivity(ip); err != nil {
-		ui.Log.Error("Cluster connectivity test failed", logger.F("error", err))
+		ui.Log.Error("Cluster connectivity test failed", logger.Field{Key: "error", Value: err})
 		return performGatewayNetworkAnalysis(ip)
 	}
 
 	if err := testGatewayFromHost(ip); err != nil {
-		ui.Log.Error("Host connectivity test failed", logger.F("error", err))
+		ui.Log.Error("Host connectivity test failed", logger.Field{Key: "error", Value: err})
 		return performGatewayNetworkAnalysis(ip)
 	}
 

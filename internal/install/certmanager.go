@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	certManagerVersion     = "1.19.1"
+	certManagerVersion     = "1.21.3"
 	certManagerNamespace   = "cert-manager"
 	certManagerChart       = "cert-manager"
 	certManagerRepoURL     = "https://charts.jetstack.io"
@@ -133,12 +133,12 @@ func verifyCertManagerInstallation() error {
 
 	ui.Log.Info("ClusterIssuer status:")
 	if err := command.RunCommand("kubectl", "get", "clusterissuer"); err != nil {
-		ui.Log.Warn("Failed to get ClusterIssuer", logger.F("error", err))
+		ui.Log.Warn("Failed to get ClusterIssuer", logger.Field{Key: "error", Value: err})
 	}
 
 	ui.Log.Info("Route53 secret status:")
 	if err := command.RunCommand("kubectl", "get", "secret", "-n", certManagerNamespace); err != nil {
-		ui.Log.Warn("Failed to get secrets", logger.F("error", err))
+		ui.Log.Warn("Failed to get secrets", logger.Field{Key: "error", Value: err})
 	}
 
 	return nil

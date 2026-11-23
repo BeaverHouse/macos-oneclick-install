@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"austinhome/internal/constants"
 	"austinhome/internal/schedule"
 	"austinhome/internal/ui"
-	"fmt"
 
 	"github.com/spf13/cobra"
 )
@@ -33,7 +33,7 @@ func runScheduleInstall(cmd *cobra.Command, args []string) error {
 	ui.Log.Info("Setting up scheduled tasks...")
 
 	if err := schedule.Execute(); err != nil {
-		return fmt.Errorf("schedule setup failed: %w", err)
+		return constants.ErrOperationFailed("schedule setup", err)
 	}
 
 	ui.Log.Info("Schedule setup completed successfully!")
@@ -44,7 +44,7 @@ func runScheduleTrigger(cmd *cobra.Command, args []string) error {
 	ui.Log.Info("Triggering full reboot cycle...")
 
 	if err := schedule.Trigger(); err != nil {
-		return fmt.Errorf("trigger failed: %w", err)
+		return constants.ErrOperationFailed("trigger", err)
 	}
 
 	return nil
@@ -54,7 +54,7 @@ func runScheduleRemove(cmd *cobra.Command, args []string) error {
 	ui.Log.Info("Removing scheduled tasks...")
 
 	if err := schedule.Unschedule(); err != nil {
-		return fmt.Errorf("unschedule failed: %w", err)
+		return constants.ErrOperationFailed("unschedule", err)
 	}
 
 	ui.Log.Info("Scheduled tasks removed successfully!")

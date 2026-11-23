@@ -2,6 +2,7 @@ package install
 
 import (
 	"austinhome/internal/config"
+	"austinhome/internal/constants"
 	"austinhome/internal/oke"
 	"austinhome/internal/ui"
 	"bufio"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/BeaverHouse/go-common/errorhandle"
 	"github.com/BeaverHouse/go-common/logger"
 )
 
@@ -27,7 +29,7 @@ func Execute() error {
 	}
 
 	if err := oke.PromptAndSaveOKEConfig(stdinReader); err != nil {
-		ui.Log.Warn("OKE config failed", logger.F("error", err))
+		ui.Log.Warn("OKE config failed", logger.Field{Key: "error", Value: err})
 	}
 
 	if err := validatePrerequisites(); err != nil {
@@ -66,10 +68,10 @@ func Execute() error {
 	}
 
 	if err := oke.Register(); err != nil {
-		ui.Log.Warn("OKE registration failed", logger.F("error", err))
+		ui.Log.Warn("OKE registration failed", logger.Field{Key: "error", Value: err})
 	}
 	if err := oke.ExportKubeconfig(); err != nil {
-		ui.Log.Warn("Kubeconfig export failed", logger.F("error", err))
+		ui.Log.Warn("Kubeconfig export failed", logger.Field{Key: "error", Value: err})
 	}
 
 	return verifyInstallation()
@@ -80,7 +82,7 @@ func installHelm() error {
 		return err
 	}
 	if err := verifyHelmInstallation(); err != nil {
-		ui.Log.Warn("Helm verification failed", logger.F("error", err))
+		ui.Log.Warn("Helm verification failed", logger.Field{Key: "error", Value: err})
 	}
 	return nil
 }
@@ -90,7 +92,7 @@ func installMetalLB() error {
 		return err
 	}
 	if err := verifyMetalLBInstallation(); err != nil {
-		ui.Log.Warn("MetalLB verification failed", logger.F("error", err))
+		ui.Log.Warn("MetalLB verification failed", logger.Field{Key: "error", Value: err})
 	}
 	return nil
 }
@@ -100,10 +102,10 @@ func installGateway() error {
 		return err
 	}
 	if err := verifyNginxGatewayInstallation(); err != nil {
-		ui.Log.Warn("NGINX Gateway Fabric verification failed", logger.F("error", err))
+		ui.Log.Warn("NGINX Gateway Fabric verification failed", logger.Field{Key: "error", Value: err})
 	}
 	if err := VerifyGatewayConnectivity(); err != nil {
-		ui.Log.Error("Gateway connectivity verification failed", logger.F("error", err))
+		ui.Log.Error("Gateway connectivity verification failed", logger.Field{Key: "error", Value: err})
 		ui.Log.Error("Installation aborted due to gateway connectivity issues")
 		return err
 	}
@@ -115,13 +117,13 @@ func installESO(gitlabPAT string) error {
 		return err
 	}
 	if err := verifyESOInstallation(); err != nil {
-		ui.Log.Warn("ESO verification failed", logger.F("error", err))
+		ui.Log.Warn("ESO verification failed", logger.Field{Key: "error", Value: err})
 	}
 	if err := SetupESOSecretStore(gitlabPAT); err != nil {
 		return err
 	}
 	if err := verifyESOSecretStore(); err != nil {
-		ui.Log.Warn("ESO SecretStore verification failed", logger.F("error", err))
+		ui.Log.Warn("ESO SecretStore verification failed", logger.Field{Key: "error", Value: err})
 	}
 	return nil
 }
@@ -131,7 +133,7 @@ func installCertManager() error {
 		return err
 	}
 	if err := verifyCertManagerInstallation(); err != nil {
-		ui.Log.Warn("Cert-Manager verification failed", logger.F("error", err))
+		ui.Log.Warn("Cert-Manager verification failed", logger.Field{Key: "error", Value: err})
 	}
 	return nil
 }
@@ -141,7 +143,7 @@ func installArgoCD() error {
 		return err
 	}
 	if err := verifyArgoCDInstallation(); err != nil {
-		ui.Log.Warn("ArgoCD verification failed", logger.F("error", err))
+		ui.Log.Warn("ArgoCD verification failed", logger.Field{Key: "error", Value: err})
 	}
 	return nil
 }
@@ -151,16 +153,16 @@ func promptEnvironmentLabel() (string, error) {
 
 	input, err := stdinReader.ReadString('\n')
 	if err != nil {
-		return "", fmt.Errorf("failed to read input: %v", err)
+		return "", constants.ErrOperationFailed("read input", err)
 	}
 
 	envLabel := strings.TrimSpace(input)
 	if envLabel == "" {
 		envLabel = defaultEnvLabel
-		ui.Log.Info("Using default label", logger.F("label", defaultEnvLabel))
+		ui.Log.Info("Using default label", logger.Field{Key: "label", Value: defaultEnvLabel})
 	}
 
-	ui.Log.Info("Environment label set", logger.F("label", envLabel))
+	ui.Log.Info("Environment label set", logger.Field{Key: "label", Value: envLabel})
 	return envLabel, nil
 }
 
@@ -169,16 +171,16 @@ func promptGitLabPAT() (string, error) {
 
 	input, err := stdinReader.ReadString('\n')
 	if err != nil {
-		return "", fmt.Errorf("failed to read GitLab PAT: %v", err)
+		return "", constants.ErrOperationFailed("read GitLab PAT", err)
 	}
 
 	pat := strings.TrimSpace(input)
 	if pat == "" {
-		return "", fmt.Errorf("GitLab PAT cannot be empty")
+		return "", errorhandle.ErrValidationFailed("GitLab PAT cannot be empty")
 	}
 
 	if err := config.Save("gitlab-pat", pat); err != nil {
-		ui.Log.Warn("Failed to save GitLab PAT to config", logger.F("error", err))
+		ui.Log.Warn("Failed to save GitLab PAT to config", logger.Field{Key: "error", Value: err})
 	}
 
 	ui.Log.Info("GitLab PAT received")
@@ -186,7 +188,7 @@ func promptGitLabPAT() (string, error) {
 }
 
 func ExecuteNonInteractive(envLabel, gitlabPAT string) error {
-	ui.Log.Info("Non-interactive install", logger.F("env", envLabel))
+	ui.Log.Info("Non-interactive install", logger.Field{Key: "env", Value: envLabel})
 
 	if err := validatePrerequisites(); err != nil {
 		return err
