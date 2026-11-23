@@ -10,16 +10,16 @@ import (
 const InstanceName = "k3s-homeserver"
 
 func Stop() {
-	ui.Log.Info("Stopping Colima instance...", logger.F("name", InstanceName))
+	ui.Log.Info("Stopping Colima instance...", logger.Field{Key: "name", Value: InstanceName})
 	if err := command.RunCommand("colima", "stop", InstanceName); err != nil {
-		ui.Log.Warn("Failed to stop Colima", logger.F("error", err))
+		ui.Log.Warn("Failed to stop Colima", logger.Field{Key: "error", Value: err})
 	}
 }
 
 func Delete() {
-	ui.Log.Info("Deleting Colima instance...", logger.F("name", InstanceName))
+	ui.Log.Info("Deleting Colima instance...", logger.Field{Key: "name", Value: InstanceName})
 	if err := command.RunCommand("colima", "delete", InstanceName, "--force"); err != nil {
-		ui.Log.Warn("Failed to delete Colima", logger.F("error", err))
+		ui.Log.Warn("Failed to delete Colima", logger.Field{Key: "error", Value: err})
 	}
 }
 

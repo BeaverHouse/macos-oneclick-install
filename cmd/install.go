@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"austinhome/internal/constants"
 	"austinhome/internal/install"
 	"austinhome/internal/ui"
-	"fmt"
 
 	"github.com/spf13/cobra"
 )
@@ -19,7 +19,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	ui.Log.Info("Starting installation...")
 
 	if err := install.Execute(); err != nil {
-		return fmt.Errorf("installation failed: %w", err)
+		return constants.ErrOperationFailed("installation", err)
 	}
 
 	ui.Log.Info("Installation completed successfully!")

@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"austinhome/internal/command"
+	"austinhome/internal/constants"
 	"austinhome/internal/ui"
 	"fmt"
 	"os"
@@ -20,14 +21,14 @@ func Unschedule() error {
 		ui.Log.Info("  (job not loaded, continuing)")
 	}
 	if err := command.RunCommand("sudo", "rm", "-f", rebootDst); err != nil {
-		ui.Log.Warn("Failed to remove reboot plist", logger.F("error", err))
+		ui.Log.Warn("Failed to remove reboot plist", logger.Field{Key: "error", Value: err})
 	}
 	ui.Log.Info("Monthly reboot schedule removed")
 
 	ui.Log.Info("Step 2: Remove boot-time reinstall agent")
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %v", err)
+		return constants.ErrOperationFailed("get home directory", err)
 	}
 
 	reinstallDst := filepath.Join(home, "Library", "LaunchAgents", reinstallLabel+".plist")
@@ -39,14 +40,14 @@ func Unschedule() error {
 	}
 	if err := os.Remove(reinstallDst); err != nil {
 		if !os.IsNotExist(err) {
-			ui.Log.Warn("Failed to remove reinstall plist", logger.F("error", err))
+			ui.Log.Warn("Failed to remove reinstall plist", logger.Field{Key: "error", Value: err})
 		}
 	}
 	ui.Log.Info("Boot-time reinstall agent removed")
 
 	ui.Log.Info("Step 3: Remove pf port forwarding")
 	if err := removePF(); err != nil {
-		ui.Log.Warn("Failed to remove pf", logger.F("error", err))
+		ui.Log.Warn("Failed to remove pf", logger.Field{Key: "error", Value: err})
 	}
 
 	ui.Log.Info("All scheduled tasks removed!")

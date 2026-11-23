@@ -2,8 +2,8 @@ package install
 
 import (
 	"austinhome/internal/command"
+	"austinhome/internal/constants"
 	"austinhome/internal/ui"
-	"fmt"
 	"strings"
 	"time"
 
@@ -121,7 +121,7 @@ func applyAppOfApplicationSets() error {
 }
 
 func waitForArgoCDApplication(name string, maxWait time.Duration) error {
-	ui.Log.Info("Waiting for ArgoCD application", logger.F("name", name))
+	ui.Log.Info("Waiting for ArgoCD application", logger.Field{Key: "name", Value: name})
 
 	deadline := time.Now().Add(maxWait)
 	for time.Now().Before(deadline) {
@@ -131,17 +131,17 @@ func waitForArgoCDApplication(name string, maxWait time.Duration) error {
 		if err == nil {
 			parts := strings.Split(strings.TrimSpace(output), "\t")
 			if len(parts) == 2 && parts[0] == "Synced" && parts[1] == "Healthy" {
-				ui.Log.Info("ArgoCD application is healthy", logger.F("name", name))
+				ui.Log.Info("ArgoCD application is healthy", logger.Field{Key: "name", Value: name})
 				return nil
 			}
 			ui.Log.Info("Still waiting for ArgoCD application",
-				logger.F("name", name),
-				logger.F("status", strings.TrimSpace(output)))
+				logger.Field{Key: "name", Value: name},
+				logger.Field{Key: "status", Value: strings.TrimSpace(output)})
 		}
 		time.Sleep(10 * time.Second)
 	}
 
-	return fmt.Errorf("timeout waiting for ArgoCD application %s to become Synced/Healthy", name)
+	return constants.ErrTimeout("ArgoCD application "+name+" becoming Synced/Healthy", maxWait)
 }
 
 func createArgoCDNamespace() error {
@@ -152,7 +152,7 @@ func createArgoCDNamespace() error {
 		if checkErr != nil {
 			return err
 		}
-		ui.Log.Info("Namespace already exists, continuing...", logger.F("namespace", argoCDNamespace))
+		ui.Log.Info("Namespace already exists, continuing...", logger.Field{Key: "namespace", Value: argoCDNamespace})
 	}
 	return nil
 }
@@ -192,7 +192,7 @@ func verifyArgoCDInstallation() error {
 
 	ui.Log.Info("ArgoCD service status:")
 	if err := command.RunCommand("kubectl", "get", "service", "-n", argoCDNamespace); err != nil {
-		ui.Log.Warn("Failed to get ArgoCD service", logger.F("error", err))
+		ui.Log.Warn("Failed to get ArgoCD service", logger.Field{Key: "error", Value: err})
 	}
 
 	ui.Log.Info("ArgoCD application status:")

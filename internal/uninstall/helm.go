@@ -25,7 +25,7 @@ func removeHelmBinary() {
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		ui.Log.Warn("Failed to get home directory", logger.F("error", err))
+		ui.Log.Warn("Failed to get home directory", logger.Field{Key: "error", Value: err})
 		return
 	}
 
@@ -38,9 +38,9 @@ func removeHelmBinary() {
 	for _, path := range helmPaths {
 		if _, err := os.Stat(path); err == nil {
 			if err := os.Remove(path); err != nil {
-				ui.Log.Warn("Failed to remove helm binary", logger.F("path", path), logger.F("error", err))
+				ui.Log.Warn("Failed to remove helm binary", logger.Field{Key: "path", Value: path}, logger.Field{Key: "error", Value: err})
 			} else {
-				ui.Log.Info("Removed", logger.F("path", path))
+				ui.Log.Info("Removed", logger.Field{Key: "path", Value: path})
 			}
 		}
 	}
@@ -51,7 +51,7 @@ func cleanupHelmDirectories() {
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		ui.Log.Warn("Failed to get home directory", logger.F("error", err))
+		ui.Log.Warn("Failed to get home directory", logger.Field{Key: "error", Value: err})
 		return
 	}
 
@@ -65,9 +65,9 @@ func cleanupHelmDirectories() {
 	for _, dir := range helmDirs {
 		if _, err := os.Stat(dir); err == nil {
 			if err := os.RemoveAll(dir); err != nil {
-				ui.Log.Warn("Failed to remove directory", logger.F("dir", dir), logger.F("error", err))
+				ui.Log.Warn("Failed to remove directory", logger.Field{Key: "dir", Value: dir}, logger.Field{Key: "error", Value: err})
 			} else {
-				ui.Log.Info("Removed directory", logger.F("dir", dir))
+				ui.Log.Info("Removed directory", logger.Field{Key: "dir", Value: dir})
 			}
 		}
 	}

@@ -3,6 +3,7 @@ package oke
 import (
 	"austinhome/internal/command"
 	"austinhome/internal/config"
+	"austinhome/internal/constants"
 	"austinhome/internal/ui"
 	"bufio"
 	"encoding/base64"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BeaverHouse/go-common/errorhandle"
 	"github.com/BeaverHouse/go-common/logger"
 )
 
@@ -45,7 +47,7 @@ func PromptAndSaveOKEConfig(reader *bufio.Reader) error {
 	fmt.Print("\nEnter OKE cluster OCID (leave empty to skip OKE setup): ")
 	ocidInput, err := reader.ReadString('\n')
 	if err != nil {
-		return fmt.Errorf("failed to read input: %v", err)
+		return constants.ErrOperationFailed("read input", err)
 	}
 	ocid := strings.TrimSpace(ocidInput)
 	if ocid == "" {
@@ -58,11 +60,11 @@ func PromptAndSaveOKEConfig(reader *bufio.Reader) error {
 	fmt.Print("\nEnter OKE region: ")
 	regionInput, err := reader.ReadString('\n')
 	if err != nil {
-		return fmt.Errorf("failed to read input: %v", err)
+		return constants.ErrOperationFailed("read input", err)
 	}
 	region := strings.TrimSpace(regionInput)
 	if region == "" {
-		return fmt.Errorf("OKE region cannot be empty")
+		return errorhandle.ErrValidationFailed("OKE region cannot be empty")
 	}
 
 	if err := config.Save(configKeyClusterOCID, ocid); err != nil {
@@ -79,7 +81,7 @@ func PromptAndSaveOKEConfig(reader *bufio.Reader) error {
 func ensureOCIConfig(reader *bufio.Reader) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %v", err)
+		return constants.ErrOperationFailed("get home directory", err)
 	}
 
 	ociConfigPath := home + "/.oci/config"
@@ -102,7 +104,7 @@ func ensureOCIConfig(reader *bufio.Reader) error {
 	fmt.Print("\n준비되었나요? (Y/n): ")
 	input, _ := reader.ReadString('\n')
 	if strings.TrimSpace(strings.ToLower(input)) == "n" {
-		return fmt.Errorf("OCI setup cancelled by user")
+		return errorhandle.ErrInternalMsg("OCI setup cancelled by user")
 	}
 
 	ui.Log.Info("Running 'oci setup config'...")
@@ -116,13 +118,13 @@ func ensureOCIConfig(reader *bufio.Reader) error {
 	ui.Log.Info("지금 OCI Console에서 Public Key를 등록하세요:")
 	ui.Log.Info("  1. OCI Console -> Profile -> My Profile -> API Keys -> Add API Key")
 	ui.Log.Info("  2. Paste Public Key 선택")
-	ui.Log.Info("  3. 아래 명령어로 키 내용 확인", logger.F("command", fmt.Sprintf("cat %s/.oci/oci_api_key_public.pem", home)))
+	ui.Log.Info("  3. 아래 명령어로 키 내용 확인", logger.Field{Key: "command", Value: fmt.Sprintf("cat %s/.oci/oci_api_key_public.pem", home)})
 	ui.Log.Info("  4. 키 내용을 붙여넣고 Add 클릭")
 
 	fmt.Print("\nAPI Key 등록을 완료했나요? (Y/n): ")
 	input, _ = reader.ReadString('\n')
 	if strings.TrimSpace(strings.ToLower(input)) == "n" {
-		return fmt.Errorf("API key registration not completed. Register the key and run 'austinhome install' again")
+		return errorhandle.ErrInternalMsg("API key registration not completed. Register the key and run 'austinhome install' again")
 	}
 
 	ui.Log.Info("OCI config setup completed")
@@ -132,11 +134,11 @@ func ensureOCIConfig(reader *bufio.Reader) error {
 func loadOKEConfig() (clusterOCID, region string, err error) {
 	clusterOCID, err = config.Load(configKeyClusterOCID)
 	if err != nil {
-		return "", "", fmt.Errorf("OKE cluster OCID not configured: %v\nRun 'austinhome install' first", err)
+		return "", "", constants.ErrNotConfigured("OKE cluster OCID", err)
 	}
 	region, err = config.Load(configKeyRegion)
 	if err != nil {
-		return "", "", fmt.Errorf("OKE region not configured: %v\nRun 'austinhome install' first", err)
+		return "", "", constants.ErrNotConfigured("OKE region", err)
 	}
 	return clusterOCID, region, nil
 }
@@ -162,7 +164,7 @@ func Register() error {
 	newContext := findNewContext(contextsBefore, getContextNames())
 	if newContext != "" {
 		if err := renameContext(newContext, okeContextAlias); err != nil {
-			ui.Log.Warn("Failed to rename context", logger.F("from", newContext), logger.F("to", okeContextAlias), logger.F("error", err))
+			ui.Log.Warn("Failed to rename context", logger.Field{Key: "from", Value: newContext}, logger.Field{Key: "to", Value: okeContextAlias}, logger.Field{Key: "error", Value: err})
 		}
 	} else {
 		ui.Log.Warn("Could not detect new OKE context name")
@@ -197,9 +199,9 @@ func Register() error {
 }
 
 func useContext(name string) error {
-	ui.Log.Info("Switching kubectl context", logger.F("context", name))
+	ui.Log.Info("Switching kubectl context", logger.Field{Key: "context", Value: name})
 	if err := command.RunCommand("kubectl", "config", "use-context", name); err != nil {
-		return fmt.Errorf("failed to switch context to %s: %v", name, err)
+		return constants.ErrOperationFailed("switch context to "+name, err)
 	}
 	return nil
 }
@@ -213,13 +215,13 @@ func recreateArgoCDManagerOnOKE() error {
 	ui.Log.Info("Recreating argocd-manager on OKE...")
 
 	if err := command.RunCommand("kubectl", "delete", "clusterrolebinding", argocdManagerCRBName, "--ignore-not-found"); err != nil {
-		return fmt.Errorf("failed to delete argocd-manager clusterrolebinding: %v", err)
+		return constants.ErrOperationFailed("delete argocd-manager clusterrolebinding", err)
 	}
 	if err := command.RunCommand("kubectl", "delete", "secret", argocdManagerSecretName, "-n", argocdManagerSANamespace, "--ignore-not-found"); err != nil {
-		return fmt.Errorf("failed to delete argocd-manager secret: %v", err)
+		return constants.ErrOperationFailed("delete argocd-manager secret", err)
 	}
 	if err := command.RunCommand("kubectl", "delete", "serviceaccount", argocdManagerSAName, "-n", argocdManagerSANamespace, "--ignore-not-found"); err != nil {
-		return fmt.Errorf("failed to delete argocd-manager serviceaccount: %v", err)
+		return constants.ErrOperationFailed("delete argocd-manager serviceaccount", err)
 	}
 
 	manifest := fmt.Sprintf(`---
@@ -256,7 +258,7 @@ type: kubernetes.io/service-account-token
 		argocdManagerSecretName, argocdManagerSANamespace, argocdManagerSAName)
 
 	if err := kubectlApplyStdin(manifest); err != nil {
-		return fmt.Errorf("failed to apply argocd-manager manifests: %v", err)
+		return constants.ErrOperationFailed("apply argocd-manager manifests", err)
 	}
 	return nil
 }
@@ -293,18 +295,18 @@ func extractClusterCredentials() (string, string, string, error) {
 	}
 
 	if tokenB64 == "" || caData == "" {
-		return "", "", "", fmt.Errorf("token/ca did not populate within %v", tokenPopulationMaxWaitTime)
+		return "", "", "", constants.ErrTimeout("token/ca population", tokenPopulationMaxWaitTime)
 	}
 
 	tokenBytes, err := base64.StdEncoding.DecodeString(tokenB64)
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to decode token: %v", err)
+		return "", "", "", constants.ErrOperationFailed("decode token", err)
 	}
 
 	server, err := command.RunCommandOutput("kubectl", "config", "view",
 		"-o", "jsonpath={.clusters[?(@.name==\""+getCurrentClusterName()+"\")].cluster.server}")
 	if err != nil || strings.TrimSpace(server) == "" {
-		return "", "", "", fmt.Errorf("failed to get OKE server URL: %v", err)
+		return "", "", "", constants.ErrOperationFailed("get OKE server URL", err)
 	}
 
 	return string(tokenBytes), caData, strings.TrimSpace(server), nil
@@ -326,7 +328,7 @@ func getCurrentClusterName() string {
 // See https://argo-cd.readthedocs.io/en/stable/operator-manual/declarative-setup/#clusters
 // Reference: https://medium.com/pickme-engineering-blog/how-to-connect-an-external-kubernetes-cluster-to-argo-cd-using-bearer-token-authentication-d9ab093f081d
 func applyArgoCDClusterSecret(token, caDataB64, server string) error {
-	ui.Log.Info("Applying ArgoCD cluster secret on K3s...", logger.F("server", server))
+	ui.Log.Info("Applying ArgoCD cluster secret on K3s...", logger.Field{Key: "server", Value: server})
 
 	configJSON := fmt.Sprintf(`{"bearerToken":%q,"tlsClientConfig":{"caData":%q}}`, token, caDataB64)
 
@@ -347,7 +349,7 @@ stringData:
 `, argocdClusterSecretName, argocdNS, okeContextAlias, server, configJSON)
 
 	if err := kubectlApplyStdin(manifest); err != nil {
-		return fmt.Errorf("failed to apply ArgoCD cluster secret: %v", err)
+		return constants.ErrOperationFailed("apply ArgoCD cluster secret", err)
 	}
 	return nil
 }
@@ -355,10 +357,10 @@ stringData:
 func refreshApplicationSetController() error {
 	ui.Log.Info("Refreshing ArgoCD ApplicationSet controller...")
 	if err := command.RunCommand("kubectl", "rollout", "restart", "deployment", "argocd-applicationset-controller", "-n", argocdNS); err != nil {
-		return fmt.Errorf("failed to restart ApplicationSet controller: %v", err)
+		return constants.ErrOperationFailed("restart ApplicationSet controller", err)
 	}
 	if err := command.RunCommand("kubectl", "rollout", "status", "deployment", "argocd-applicationset-controller", "-n", argocdNS, "--timeout=120s"); err != nil {
-		return fmt.Errorf("ApplicationSet controller did not become ready: %v", err)
+		return constants.ErrOperationFailed("ApplicationSet controller readiness check", err)
 	}
 	return nil
 }
@@ -397,7 +399,7 @@ func findNewContext(before, after map[string]bool) string {
 }
 
 func renameContext(oldName, newName string) error {
-	ui.Log.Info("Renaming context", logger.F("from", oldName), logger.F("to", newName))
+	ui.Log.Info("Renaming context", logger.Field{Key: "from", Value: oldName}, logger.Field{Key: "to", Value: newName})
 	return command.RunCommand("kubectl", "config", "rename-context", oldName, newName)
 }
 

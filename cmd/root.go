@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"fmt"
+	"austinhome/internal/constants"
 	"os"
 
 	"austinhome/internal/schedule"
@@ -19,7 +19,7 @@ var rootCmd = &cobra.Command{
 		ui.Log.Info("No command provided; applying Austin Home update schedule from this binary.")
 		ui.Log.Info("This refreshes the launch binary and boot-time reinstall agent without changing the monthly reboot daemon.")
 		if err := schedule.Update(); err != nil {
-			return fmt.Errorf("update schedule failed: %w", err)
+			return constants.ErrOperationFailed("update schedule", err)
 		}
 		ui.Log.Info("Update schedule applied. The next monthly reboot will use this austinhome binary.")
 		return nil

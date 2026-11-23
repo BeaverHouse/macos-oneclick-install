@@ -2,8 +2,8 @@ package schedule
 
 import (
 	"austinhome/internal/command"
+	"austinhome/internal/constants"
 	"austinhome/internal/ui"
-	"fmt"
 )
 
 func Trigger() error {
@@ -11,11 +11,11 @@ func Trigger() error {
 	ui.Log.Info("Check /tmp/austinhome-reinstall.log after reboot for results")
 
 	if err := Update(); err != nil {
-		return fmt.Errorf("schedule refresh failed: %v", err)
+		return constants.ErrOperationFailed("schedule refresh", err)
 	}
 
 	if err := command.RunCommand("sudo", "shutdown", "-r", "now"); err != nil {
-		return fmt.Errorf("reboot failed: %v", err)
+		return constants.ErrOperationFailed("reboot", err)
 	}
 
 	return nil

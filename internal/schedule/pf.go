@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"austinhome/internal/command"
+	"austinhome/internal/constants"
 	"austinhome/internal/ui"
 	"fmt"
 	"os"
@@ -49,20 +50,20 @@ func setupPF() error {
 func writeAnchorFile() error {
 	tmpPath := "/tmp/" + pfAnchorName + ".anchor"
 	if err := os.WriteFile(tmpPath, []byte(pfAnchorContent), 0644); err != nil {
-		return fmt.Errorf("failed to write anchor to /tmp: %v", err)
+		return constants.ErrOperationFailed("write anchor to /tmp", err)
 	}
 	if err := command.RunCommand("sudo", "cp", tmpPath, pfAnchorPath); err != nil {
-		return fmt.Errorf("failed to copy anchor file: %v", err)
+		return constants.ErrOperationFailed("copy anchor file", err)
 	}
 	os.Remove(tmpPath)
-	ui.Log.Info("pf anchor file written", logger.F("path", pfAnchorPath))
+	ui.Log.Info("pf anchor file written", logger.Field{Key: "path", Value: pfAnchorPath})
 	return nil
 }
 
 func updatePFConf() error {
 	data, err := os.ReadFile(pfConfPath)
 	if err != nil {
-		return fmt.Errorf("failed to read %s: %v", pfConfPath, err)
+		return constants.ErrOperationFailed("read "+pfConfPath, err)
 	}
 
 	content := string(data)
@@ -90,10 +91,10 @@ func updatePFConf() error {
 
 	tmpPath := "/tmp/pf.conf.tmp"
 	if err := os.WriteFile(tmpPath, []byte(strings.Join(result, "\n")), 0644); err != nil {
-		return fmt.Errorf("failed to write temp pf.conf: %v", err)
+		return constants.ErrOperationFailed("write temp pf.conf", err)
 	}
 	if err := command.RunCommand("sudo", "cp", tmpPath, pfConfPath); err != nil {
-		return fmt.Errorf("failed to update pf.conf: %v", err)
+		return constants.ErrOperationFailed("update pf.conf", err)
 	}
 	os.Remove(tmpPath)
 	ui.Log.Info("pf.conf updated with austinhome anchors")
@@ -106,7 +107,7 @@ func enableIPForwarding() error {
 
 func reloadPF() error {
 	if err := command.RunCommand("sudo", "pfctl", "-ef", pfConfPath); err != nil {
-		ui.Log.Warn("pfctl enable/reload", logger.F("error", err))
+		ui.Log.Warn("pfctl enable/reload", logger.Field{Key: "error", Value: err})
 	}
 	return nil
 }
@@ -117,19 +118,19 @@ func installNetworkDaemon() error {
 
 	tmpPath := "/tmp/" + label + ".plist"
 	if err := os.WriteFile(tmpPath, networkPlist, 0644); err != nil {
-		return fmt.Errorf("failed to write network plist: %v", err)
+		return constants.ErrOperationFailed("write network plist", err)
 	}
 	if err := command.RunCommand("sudo", "cp", tmpPath, dst); err != nil {
-		return fmt.Errorf("failed to copy network plist: %v", err)
+		return constants.ErrOperationFailed("copy network plist", err)
 	}
 	if err := command.RunCommand("sudo", "chown", "root:wheel", dst); err != nil {
-		return fmt.Errorf("failed to set ownership: %v", err)
+		return constants.ErrOperationFailed("set ownership", err)
 	}
 	if err := command.RunCommand("sudo", "launchctl", "bootout", "system/"+label); err != nil {
 		ui.Log.Info("  (no existing job to remove, continuing)")
 	}
 	if err := command.RunCommand("sudo", "launchctl", "bootstrap", "system", dst); err != nil {
-		return fmt.Errorf("failed to load network daemon: %v", err)
+		return constants.ErrOperationFailed("load network daemon", err)
 	}
 	os.Remove(tmpPath)
 	ui.Log.Info("Network daemon installed (IP forwarding + pf enable)")
@@ -146,10 +147,10 @@ func removePF() error {
 		ui.Log.Info("  (network job not loaded, continuing)")
 	}
 	if err := command.RunCommand("sudo", "rm", "-f", dst); err != nil {
-		ui.Log.Warn("Failed to remove network plist", logger.F("error", err))
+		ui.Log.Warn("Failed to remove network plist", logger.Field{Key: "error", Value: err})
 	}
 	if err := command.RunCommand("sudo", "rm", "-f", pfAnchorPath); err != nil {
-		ui.Log.Warn("Failed to remove pf anchor", logger.F("error", err))
+		ui.Log.Warn("Failed to remove pf anchor", logger.Field{Key: "error", Value: err})
 	}
 
 	data, err := os.ReadFile(pfConfPath)
