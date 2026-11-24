@@ -18,6 +18,10 @@ const (
 	colimaCPUs   = "4"
 	colimaMemory = "8"
 
+	// Without an explicit version Colima reuses the one saved in its profile,
+	// which kept the cluster on an unsupported release.
+	k3sVersion = "v1.36.6+k3s1"
+
 	k3sReadyTimeout = 600 * time.Second
 )
 
@@ -64,6 +68,7 @@ func startColimaWithK3s() error {
 		"--network-mode", "bridged",
 		"--network-interface", "en1",
 		"--kubernetes",
+		"--kubernetes-version", k3sVersion,
 		"--kubernetes-disable", "servicelb",
 		"--dns", "8.8.8.8",
 		"--dns", "8.8.4.4")
