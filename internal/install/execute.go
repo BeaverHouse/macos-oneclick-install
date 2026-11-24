@@ -41,9 +41,6 @@ func Execute() error {
 	if err := setupK3sCluster(); err != nil {
 		return err
 	}
-	if err := enableEssentialAddons(); err != nil {
-		return err
-	}
 	if err := setupPostInstallation(envLabel); err != nil {
 		return err
 	}
@@ -197,9 +194,6 @@ func ExecuteNonInteractive(envLabel, gitlabPAT string) error {
 		return err
 	}
 	if err := setupK3sCluster(); err != nil {
-		return err
-	}
-	if err := enableEssentialAddons(); err != nil {
 		return err
 	}
 	if err := setupPostInstallation(envLabel); err != nil {

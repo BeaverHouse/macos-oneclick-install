@@ -206,20 +206,6 @@ func disableTraefik() error {
 	return nil
 }
 
-func enableEssentialAddons() error {
-	ui.Log.Info("Installing essential addons...")
-
-	ui.Log.Info("Installing metrics-server...")
-	if err := command.RunCommand("kubectl", "apply", "-f",
-		"https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml"); err != nil {
-		ui.Log.Warn("Failed to install metrics-server", logger.Field{Key: "error", Value: err})
-	} else {
-		ui.Log.Info("Metrics-server installed")
-	}
-
-	return nil
-}
-
 func setNodeLabel(envLabel string) error {
 	ui.Log.Info("Setting node label...")
 
