@@ -18,8 +18,7 @@ const (
 	colimaCPUs   = "4"
 	colimaMemory = "8"
 
-	// Colima's default k3s is fixed per Colima release, and an installed Colima
-	// is never upgraded here, so the default kept the cluster on 1.33.
+	// Colima's default k3s is fixed per Colima release, not the newest k3s.
 	k3sVersion = "v1.36.6+k3s1"
 
 	k3sReadyTimeout = 600 * time.Second
@@ -32,14 +31,11 @@ func validatePrerequisites() error {
 	return nil
 }
 
-func installColimaIfNeeded() error {
-	if !command.IsCommandAvailable("colima") {
-		ui.Log.Info("Installing Colima...")
-		if err := command.RunCommand("brew", "install", "colima"); err != nil {
-			return constants.ErrOperationFailed("install Colima", err)
-		}
-	} else {
-		ui.Log.Info("Colima is already installed")
+// installColima also upgrades an outdated Colima, because brew install does.
+func installColima() error {
+	ui.Log.Info("Installing or upgrading Colima...")
+	if err := command.RunCommand("brew", "install", "colima"); err != nil {
+		return constants.ErrOperationFailed("install Colima", err)
 	}
 	return nil
 }

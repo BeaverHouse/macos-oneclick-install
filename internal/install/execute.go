@@ -35,7 +35,7 @@ func Execute() error {
 	if err := validatePrerequisites(); err != nil {
 		return err
 	}
-	if err := installColimaIfNeeded(); err != nil {
+	if err := installColima(); err != nil {
 		return err
 	}
 	if err := setupK3sCluster(); err != nil {
@@ -190,7 +190,7 @@ func ExecuteNonInteractive(envLabel, gitlabPAT string) error {
 	if err := validatePrerequisites(); err != nil {
 		return err
 	}
-	if err := installColimaIfNeeded(); err != nil {
+	if err := installColima(); err != nil {
 		return err
 	}
 	if err := setupK3sCluster(); err != nil {
