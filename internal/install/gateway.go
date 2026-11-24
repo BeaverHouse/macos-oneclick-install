@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	gatewayAPIVersion       = "v1.4.0"
-	nginxGatewayVersion     = "2.2.1"
+	gatewayAPIVersion       = "v1.7.0"
+	nginxGatewayVersion     = "2.9.0"
 	nginxGatewayNamespace   = "nginx-gateway"
 	nginxGatewayOCIRegistry = "oci://ghcr.io/nginx/charts/nginx-gateway-fabric"
 	nginxGatewayValuesURL   = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-nginx-gateway/values-home.yaml"
