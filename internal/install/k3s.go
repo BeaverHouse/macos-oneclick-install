@@ -94,11 +94,21 @@ func upgradeVMKernel() error {
 		return constants.ErrOperationFailed("restart Colima to boot the new kernel", err)
 	}
 
-	kernel, err := command.RunCommandOutput("colima", "ssh", "--profile", colima.InstanceName, "--", "uname", "-r")
+	installedLink, err := command.RunCommandOutput("colima", "ssh", "--profile", colima.InstanceName, "--", "readlink", "/boot/vmlinuz")
 	if err != nil {
-		return constants.ErrOperationFailed("read VM kernel version", err)
+		return constants.ErrOperationFailed("read installed VM kernel", err)
 	}
-	ui.Log.Info("Colima VM kernel upgraded", logger.Field{Key: "kernel", Value: strings.TrimSpace(kernel)})
+	bootedOutput, err := command.RunCommandOutput("colima", "ssh", "--profile", colima.InstanceName, "--", "uname", "-r")
+	if err != nil {
+		return constants.ErrOperationFailed("read booted VM kernel", err)
+	}
+
+	installed := strings.TrimPrefix(strings.TrimSpace(installedLink), "vmlinuz-")
+	booted := strings.TrimSpace(bootedOutput)
+	if booted != installed {
+		return errorhandle.ErrInternalMsg(fmt.Sprintf("Colima VM booted kernel %s instead of the installed %s", booted, installed))
+	}
+	ui.Log.Info("Colima VM kernel upgraded", logger.Field{Key: "kernel", Value: installed})
 	return nil
 }
 
