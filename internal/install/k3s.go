@@ -76,6 +76,43 @@ func startColimaWithK3s() error {
 	return nil
 }
 
+// upgradeVMKernel boots the VM on Ubuntu's current kernel.
+// The Colima disk image predates fixes such as CVE-2026-98432, and the VM is
+// recreated on every reinstall, so the upgrade has to run each time.
+func upgradeVMKernel() error {
+	ui.Log.Info("Upgrading Colima VM kernel...")
+
+	aptGet := []string{"ssh", "--profile", colima.InstanceName, "--",
+		"sudo", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "-q", "-o", "DPkg::Lock::Timeout=120"}
+	// Without --error-on=any a failed fetch still exits 0 and the old kernel stays the newest one apt knows.
+	if err := command.RunCommand("colima", append(aptGet, "update", "--error-on=any")...); err != nil {
+		return constants.ErrOperationFailed("update VM package index", err)
+	}
+	if err := command.RunCommand("colima", append(aptGet, "install", "-y", "linux-image-virtual")...); err != nil {
+		return constants.ErrOperationFailed("install VM kernel", err)
+	}
+	if err := command.RunCommand("colima", "restart", colima.InstanceName); err != nil {
+		return constants.ErrOperationFailed("restart Colima to boot the new kernel", err)
+	}
+
+	installedLink, err := command.RunCommandOutput("colima", "ssh", "--profile", colima.InstanceName, "--", "readlink", "/boot/vmlinuz")
+	if err != nil {
+		return constants.ErrOperationFailed("read installed VM kernel", err)
+	}
+	bootedOutput, err := command.RunCommandOutput("colima", "ssh", "--profile", colima.InstanceName, "--", "uname", "-r")
+	if err != nil {
+		return constants.ErrOperationFailed("read booted VM kernel", err)
+	}
+
+	installed := strings.TrimPrefix(strings.TrimSpace(installedLink), "vmlinuz-")
+	booted := strings.TrimSpace(bootedOutput)
+	if booted != installed {
+		return errorhandle.ErrInternalMsg(fmt.Sprintf("Colima VM booted kernel %s instead of the installed %s", booted, installed))
+	}
+	ui.Log.Info("Colima VM kernel upgraded", logger.Field{Key: "kernel", Value: installed})
+	return nil
+}
+
 func waitForK3sReady() error {
 	ui.Log.Info("Waiting for K3s cluster to be ready...")
 
@@ -253,6 +290,10 @@ func setupK3sCluster() error {
 
 	if err := startColimaWithK3s(); err != nil {
 		return constants.ErrOperationFailed("start Colima with K3s", err)
+	}
+
+	if err := upgradeVMKernel(); err != nil {
+		return constants.ErrOperationFailed("upgrade Colima VM kernel", err)
 	}
 
 	if err := normalizeLocalKubeconfig(); err != nil {
