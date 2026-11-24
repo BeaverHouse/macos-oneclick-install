@@ -84,7 +84,8 @@ func upgradeVMKernel() error {
 
 	aptGet := []string{"ssh", "--profile", colima.InstanceName, "--",
 		"sudo", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "-q", "-o", "DPkg::Lock::Timeout=120"}
-	if err := command.RunCommand("colima", append(aptGet, "update")...); err != nil {
+	// Without --error-on=any a failed fetch still exits 0 and the old kernel stays the newest one apt knows.
+	if err := command.RunCommand("colima", append(aptGet, "update", "--error-on=any")...); err != nil {
 		return constants.ErrOperationFailed("update VM package index", err)
 	}
 	if err := command.RunCommand("colima", append(aptGet, "install", "-y", "linux-image-virtual")...); err != nil {
