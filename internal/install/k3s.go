@@ -18,8 +18,8 @@ const (
 	colimaCPUs   = "4"
 	colimaMemory = "8"
 
-	// Without an explicit version Colima reuses the one saved in its profile,
-	// which kept the cluster on an unsupported release.
+	// Colima's default k3s is fixed per Colima release, and an installed Colima
+	// is never upgraded here, so the default kept the cluster on 1.33.
 	k3sVersion = "v1.36.6+k3s1"
 
 	k3sReadyTimeout = 600 * time.Second
