@@ -9,7 +9,6 @@ import (
 )
 
 const (
-	certManagerVersion     = "1.21.3"
 	certManagerNamespace   = "cert-manager"
 	certManagerChart       = "cert-manager"
 	certManagerRepoURL     = "https://charts.jetstack.io"
@@ -63,12 +62,16 @@ func InstallCertManager() error {
 
 func applyCertManagerManifests() error {
 	ui.Log.Info("Installing Cert-Manager chart...")
+	version, err := cicdVersion("oss-cert-manager.yaml", certManagerRepoURL)
+	if err != nil {
+		return err
+	}
 	return command.RunCommand("helm", "upgrade", "--install", "cert-manager",
 		certManagerChart,
 		"--repo", certManagerRepoURL,
 		"--namespace", certManagerNamespace,
 		"--create-namespace",
-		"--version", "v"+certManagerVersion,
+		"--version", version,
 		"--values", certManagerValuesURL)
 }
 

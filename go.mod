@@ -5,6 +5,7 @@ go 1.27
 require (
 	github.com/BeaverHouse/go-common v1.0.20260608
 	github.com/spf13/cobra v1.10.2
+	go.yaml.in/yaml/v3 v3.0.6
 )
 
 require (
