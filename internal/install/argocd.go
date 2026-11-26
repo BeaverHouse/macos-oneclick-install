@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	argoCDVersion     = "9.4.7"
+	argoCDVersion     = "10.20.0"
 	argoCDRepoName    = "argo"
 	argoCDRepoURL     = "https://argoproj.github.io/argo-helm"
 	argoCDNamespace   = "argo-project"
