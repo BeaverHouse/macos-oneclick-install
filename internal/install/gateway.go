@@ -14,17 +14,12 @@ import (
 )
 
 const (
-	gatewayAPIVersion       = "v1.7.0"
-	nginxGatewayVersion     = "2.9.0"
+	gatewayAPIRepoURL       = "https://github.com/kubernetes-sigs/gateway-api.git"
 	nginxGatewayNamespace   = "nginx-gateway"
 	nginxGatewayOCIRegistry = "oci://ghcr.io/nginx/charts/nginx-gateway-fabric"
 	nginxGatewayValuesURL   = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-nginx-gateway/values-home.yaml"
 	homeGatewayResourceURL  = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-nginx-gateway/resources/gateway-home.yaml"
 )
-
-func gatewayAPICRDURL() string {
-	return fmt.Sprintf("https://github.com/kubernetes-sigs/gateway-api/releases/download/%s/standard-install.yaml", gatewayAPIVersion)
-}
 
 func InstallNginxGateway() error {
 	ui.Log.Info("Installing NGINX Gateway Fabric...")
@@ -51,16 +46,25 @@ func createHomeGateway() error {
 }
 
 func installGatewayAPICRDs() error {
-	ui.Log.Info("Installing Gateway API CRDs", logger.Field{Key: "version", Value: gatewayAPIVersion})
-	return command.RunCommand("kubectl", "apply", "-f", gatewayAPICRDURL())
+	version, err := cicdVersion("oss-nginx-gateway.yaml", gatewayAPIRepoURL)
+	if err != nil {
+		return err
+	}
+	ui.Log.Info("Installing Gateway API CRDs", logger.Field{Key: "version", Value: version})
+	crdURL := fmt.Sprintf("https://github.com/kubernetes-sigs/gateway-api/releases/download/%s/standard-install.yaml", version)
+	return command.RunCommand("kubectl", "apply", "-f", crdURL)
 }
 
 func installNginxGatewayFabric() error {
 	ui.Log.Info("Installing NGINX Gateway Fabric chart...")
+	version, err := cicdVersion("oss-nginx-gateway.yaml", nginxGatewayOCIRegistry)
+	if err != nil {
+		return err
+	}
 	return command.RunCommand("helm", "upgrade", "--install", "nginx-gateway",
 		nginxGatewayOCIRegistry,
 		"--namespace", nginxGatewayNamespace,
-		"--version", nginxGatewayVersion,
+		"--version", version,
 		"--values", nginxGatewayValuesURL,
 		"--create-namespace")
 }

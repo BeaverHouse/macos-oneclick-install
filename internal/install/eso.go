@@ -7,7 +7,6 @@ import (
 )
 
 const (
-	esoVersion     = "2.15.0"
 	esoRepoName    = "external-secrets"
 	esoRepoURL     = "https://charts.external-secrets.io"
 	esoNamespace   = "external-secrets"
@@ -49,10 +48,14 @@ func updateHelmRepoForESO() error {
 
 func installESOChart() error {
 	ui.Log.Info("Installing External Secrets chart...")
+	version, err := cicdVersion("oss-eso.yaml", esoRepoURL)
+	if err != nil {
+		return err
+	}
 	return command.RunCommand("helm", "install", "external-secrets",
 		"external-secrets/external-secrets",
 		"--namespace", esoNamespace,
-		"--version", esoVersion,
+		"--version", version,
 		"--create-namespace")
 }
 

@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	argoCDVersion     = "10.20.0"
 	argoCDRepoName    = "argo"
 	argoCDRepoURL     = "https://argoproj.github.io/argo-helm"
 	argoCDNamespace   = "argo-project"
@@ -174,12 +173,16 @@ func updateHelmRepoForArgoCD() error {
 
 func installArgoCDChart() error {
 	ui.Log.Info("Installing ArgoCD chart...")
+	version, err := cicdVersion("oss-argocd.yaml", argoCDRepoURL)
+	if err != nil {
+		return err
+	}
 	return command.RunCommand("helm", "upgrade", "--install", "argocd",
 		"argo/argo-cd",
 		"--namespace", argoCDNamespace,
 		"--create-namespace",
 		"--values", argoCDValuesURL,
-		"--version", argoCDVersion)
+		"--version", version)
 }
 
 func verifyArgoCDInstallation() error {

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	metalLBVersion         = "0.15.2"
+	metalLBRepoURL         = "https://github.com/metallb/metallb.git"
 	metalLBNamespace       = "metallb-system"
 	metalLBPodReadyTimeout = 3 * time.Minute
 	metalLBNamespaceURL    = "https://raw.githubusercontent.com/BeaverHouse/cicd/refs/heads/main/charts/oss-metallb/resources/namespace.yaml"
@@ -47,7 +47,11 @@ func applyNamespace() error {
 
 func applyMetalLBManifests() error {
 	ui.Log.Info("Applying MetalLB manifests...")
-	manifestURL := fmt.Sprintf("https://raw.githubusercontent.com/metallb/metallb/v%s/config/manifests/metallb-native.yaml", metalLBVersion)
+	version, err := cicdVersion("oss-metallb.yaml", metalLBRepoURL)
+	if err != nil {
+		return err
+	}
+	manifestURL := fmt.Sprintf("https://raw.githubusercontent.com/metallb/metallb/%s/config/manifests/metallb-native.yaml", version)
 	return command.RunCommand("kubectl", "apply", "-f", manifestURL)
 }
 
